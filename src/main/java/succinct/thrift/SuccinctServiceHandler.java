@@ -323,8 +323,11 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public List<Long> locate(String query) throws org.apache.thrift.TException {
     	List<Long> locations = new ArrayList<>();
     	for(int i = 0; i < clients.size(); i++) {
-    		locations.addAll(clients.get(i).locateLocal(query));
+    		clients.get(i).send_locateLocal(query);
     	}
+        for(int i = 0; i < clients.size(); i++) {
+            locations.addAll(clients.get(i).recv_locateLocal());
+        }
     	return locations;
     }
 
@@ -332,16 +335,23 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public List<Long> locateLocal(String query) throws org.apache.thrift.TException {
     	List<Long> locations = new ArrayList<>();
     	for(int i = 0; i < localServers.size(); i++) {
-    		locations.addAll(localServers.get(i).locate(query));
+            localServers.get(i).send_locate(query);
     	}
+
+        for(int i = 0; i < localServers.size(); i++) {
+            locations.addAll(localServers.get(i).recv_locate());
+        }
     	return locations;
     }
 
     @Override
     public long count(String query) throws org.apache.thrift.TException {
     	int ret = 0;
+        for(int i = 0; i < clients.size(); i++) {
+            clients.get(i).send_countLocal(query);
+        }
     	for(int i = 0; i < clients.size(); i++) {
-    		ret += clients.get(i).countLocal(query);
+    		ret += clients.get(i).recv_countLocal();
     	}
     	return ret;
     }
@@ -350,8 +360,11 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public long countLocal(String query) throws org.apache.thrift.TException {
     	int ret = 0;
     	for(int i = 0; i < localServers.size(); i++) {
-    		ret += localServers.get(i).count(query);
+    		localServers.get(i).send_count(query);
     	}
+        for(int i = 0; i < localServers.size(); i++) {
+            ret += localServers.get(i).recv_count();
+        }
     	return ret;
     }
 
@@ -403,8 +416,12 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public Set<String> getKeys(String substring) throws org.apache.thrift.TException {
     	System.out.println("Received getKeys query for [" + substring + "]");
     	Set<String> keys = new TreeSet<>();
+        for(int i = 0; i < clients.size(); i++) {
+            clients.get(i).send_getKeysLocal(substring);
+        }
+
     	for(int i = 0; i < clients.size(); i++) {
-    		keys.addAll(clients.get(i).getKeysLocal(substring));
+    		keys.addAll(clients.get(i).recv_getKeysLocal());
     	}
     	return keys;
     }
@@ -414,8 +431,11 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     	System.out.println("Received getKeysLocal query for [" + substring + "]");
     	Set<String> keys = new TreeSet<>();
     	for(int i = 0; i < localServers.size(); i++) {
-    		keys.addAll(localServers.get(i).getKeys(substring));
+    		localServers.get(i).send_getKeys(substring);
     	}
+        for(int i = 0; i < localServers.size(); i++) {
+            keys.addAll(localServers.get(i).recv_getKeys());
+        }
     	return keys;
     }
 
@@ -424,8 +444,11 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     	System.out.println("Received getRecords query for [" + substring + "]");
     	Map<String, String> records = new TreeMap<>();
     	for(int i = 0; i < clients.size(); i++) {
-    		records.putAll(clients.get(i).getRecordsLocal(substring));
+    		clients.get(i).send_getRecordsLocal(substring);
     	}
+        for(int i = 0; i < clients.size(); i++) {
+            records.putAll(clients.get(i).recv_getRecordsLocal());
+        }
     	return records;
     }
 
@@ -434,8 +457,11 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     	System.out.println("Received getRecordsLocal query for [" + substring + "]");
     	Map<String, String> records = new TreeMap<>();
     	for(int i = 0; i < localServers.size(); i++) {
-    		records.putAll(localServers.get(i).getRecords(substring));
+    		localServers.get(i).send_getRecords(substring);
     	}
+        for(int i = 0; i < localServers.size(); i++) {
+            records.putAll(localServers.get(i).recv_getRecords());
+        }
     	return records;
     }
 
@@ -455,7 +481,10 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public Map<Integer,Map<Integer,Range>> getRanges(String query) throws org.apache.thrift.TException {
         Map<Integer, Map<Integer, Range>> rangeMap = new HashMap<>();
         for(int i = 0; i < clients.size(); i++) {
-            rangeMap.put(i, clients.get(i).getRangesLocal(query));
+            clients.get(i).send_getRangesLocal(query);
+        }
+        for(int i = 0; i < clients.size(); i++) {
+            rangeMap.put(i, clients.get(i).recv_getRangesLocal());
         }
         return rangeMap;
     }
@@ -464,7 +493,10 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     public Map<Integer,Range> getRangesLocal(String query) throws org.apache.thrift.TException {
         Map<Integer, Range> rangeMap = new HashMap<>();
         for(int i = 0; i < localServers.size(); i++) {
-            rangeMap.put(i, localServers.get(i).getRange(query));
+            localServers.get(i).send_getRange(query);
+        }
+        for(int i = 0; i < localServers.size(); i++) {
+            rangeMap.put(i, localServers.get(i).recv_getRange());
         }
         return rangeMap;
     }
