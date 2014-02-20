@@ -970,7 +970,7 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
         }
 
         // Setup Tachyon buffers
-        tachyonClient = TachyonFS.get(tachyonMasterAddress + ":" + 19998);
+        tachyonClient = TachyonFS.get("tachyon://" + tachyonMasterAddress + ":19998/");
 
         tachyonClient.getFile(path + "/metadata").recache();
         tachyonClient.getFile(path + "/cmap").recache();
