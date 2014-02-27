@@ -30,13 +30,15 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SuccinctService {
+public class SuccinctMasterService {
 
   public interface Iface {
 
     public int initialize(int mode) throws org.apache.thrift.TException;
 
-    public long getServerOffset() throws org.apache.thrift.TException;
+    public int createSuccinctFile(String filePath) throws org.apache.thrift.TException;
+
+    public int openSuccinctFile(String fileName) throws org.apache.thrift.TException;
 
     public List<Long> locate(String query) throws org.apache.thrift.TException;
 
@@ -44,9 +46,9 @@ public class SuccinctService {
 
     public String extract(long loc, long bytes) throws org.apache.thrift.TException;
 
-    public Range getRange(String query) throws org.apache.thrift.TException;
+    public Map<Integer,Map<Integer,Range>> getRanges(String query) throws org.apache.thrift.TException;
 
-    public long getLocation(long index) throws org.apache.thrift.TException;
+    public long getLocation(int clientId, int serverId, long index) throws org.apache.thrift.TException;
 
   }
 
@@ -54,7 +56,9 @@ public class SuccinctService {
 
     public void initialize(int mode, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.initialize_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void getServerOffset(org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getServerOffset_call> resultHandler) throws org.apache.thrift.TException;
+    public void createSuccinctFile(String filePath, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.createSuccinctFile_call> resultHandler) throws org.apache.thrift.TException;
+
+    public void openSuccinctFile(String fileName, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.openSuccinctFile_call> resultHandler) throws org.apache.thrift.TException;
 
     public void locate(String query, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.locate_call> resultHandler) throws org.apache.thrift.TException;
 
@@ -62,9 +66,9 @@ public class SuccinctService {
 
     public void extract(long loc, long bytes, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.extract_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void getRange(String query, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getRange_call> resultHandler) throws org.apache.thrift.TException;
+    public void getRanges(String query, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getRanges_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void getLocation(long index, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getLocation_call> resultHandler) throws org.apache.thrift.TException;
+    public void getLocation(int clientId, int serverId, long index, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getLocation_call> resultHandler) throws org.apache.thrift.TException;
 
   }
 
@@ -111,26 +115,50 @@ public class SuccinctService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "initialize failed: unknown result");
     }
 
-    public long getServerOffset() throws org.apache.thrift.TException
+    public int createSuccinctFile(String filePath) throws org.apache.thrift.TException
     {
-      send_getServerOffset();
-      return recv_getServerOffset();
+      send_createSuccinctFile(filePath);
+      return recv_createSuccinctFile();
     }
 
-    public void send_getServerOffset() throws org.apache.thrift.TException
+    public void send_createSuccinctFile(String filePath) throws org.apache.thrift.TException
     {
-      getServerOffset_args args = new getServerOffset_args();
-      sendBase("getServerOffset", args);
+      createSuccinctFile_args args = new createSuccinctFile_args();
+      args.setFilePath(filePath);
+      sendBase("createSuccinctFile", args);
     }
 
-    public long recv_getServerOffset() throws org.apache.thrift.TException
+    public int recv_createSuccinctFile() throws org.apache.thrift.TException
     {
-      getServerOffset_result result = new getServerOffset_result();
-      receiveBase(result, "getServerOffset");
+      createSuccinctFile_result result = new createSuccinctFile_result();
+      receiveBase(result, "createSuccinctFile");
       if (result.isSetSuccess()) {
         return result.success;
       }
-      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getServerOffset failed: unknown result");
+      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "createSuccinctFile failed: unknown result");
+    }
+
+    public int openSuccinctFile(String fileName) throws org.apache.thrift.TException
+    {
+      send_openSuccinctFile(fileName);
+      return recv_openSuccinctFile();
+    }
+
+    public void send_openSuccinctFile(String fileName) throws org.apache.thrift.TException
+    {
+      openSuccinctFile_args args = new openSuccinctFile_args();
+      args.setFileName(fileName);
+      sendBase("openSuccinctFile", args);
+    }
+
+    public int recv_openSuccinctFile() throws org.apache.thrift.TException
+    {
+      openSuccinctFile_result result = new openSuccinctFile_result();
+      receiveBase(result, "openSuccinctFile");
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "openSuccinctFile failed: unknown result");
     }
 
     public List<Long> locate(String query) throws org.apache.thrift.TException
@@ -203,38 +231,40 @@ public class SuccinctService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "extract failed: unknown result");
     }
 
-    public Range getRange(String query) throws org.apache.thrift.TException
+    public Map<Integer,Map<Integer,Range>> getRanges(String query) throws org.apache.thrift.TException
     {
-      send_getRange(query);
-      return recv_getRange();
+      send_getRanges(query);
+      return recv_getRanges();
     }
 
-    public void send_getRange(String query) throws org.apache.thrift.TException
+    public void send_getRanges(String query) throws org.apache.thrift.TException
     {
-      getRange_args args = new getRange_args();
+      getRanges_args args = new getRanges_args();
       args.setQuery(query);
-      sendBase("getRange", args);
+      sendBase("getRanges", args);
     }
 
-    public Range recv_getRange() throws org.apache.thrift.TException
+    public Map<Integer,Map<Integer,Range>> recv_getRanges() throws org.apache.thrift.TException
     {
-      getRange_result result = new getRange_result();
-      receiveBase(result, "getRange");
+      getRanges_result result = new getRanges_result();
+      receiveBase(result, "getRanges");
       if (result.isSetSuccess()) {
         return result.success;
       }
-      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getRange failed: unknown result");
+      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getRanges failed: unknown result");
     }
 
-    public long getLocation(long index) throws org.apache.thrift.TException
+    public long getLocation(int clientId, int serverId, long index) throws org.apache.thrift.TException
     {
-      send_getLocation(index);
+      send_getLocation(clientId, serverId, index);
       return recv_getLocation();
     }
 
-    public void send_getLocation(long index) throws org.apache.thrift.TException
+    public void send_getLocation(int clientId, int serverId, long index) throws org.apache.thrift.TException
     {
       getLocation_args args = new getLocation_args();
+      args.setClientId(clientId);
+      args.setServerId(serverId);
       args.setIndex(index);
       sendBase("getLocation", args);
     }
@@ -299,32 +329,67 @@ public class SuccinctService {
       }
     }
 
-    public void getServerOffset(org.apache.thrift.async.AsyncMethodCallback<getServerOffset_call> resultHandler) throws org.apache.thrift.TException {
+    public void createSuccinctFile(String filePath, org.apache.thrift.async.AsyncMethodCallback<createSuccinctFile_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      getServerOffset_call method_call = new getServerOffset_call(resultHandler, this, ___protocolFactory, ___transport);
+      createSuccinctFile_call method_call = new createSuccinctFile_call(filePath, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
-    public static class getServerOffset_call extends org.apache.thrift.async.TAsyncMethodCall {
-      public getServerOffset_call(org.apache.thrift.async.AsyncMethodCallback<getServerOffset_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+    public static class createSuccinctFile_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private String filePath;
+      public createSuccinctFile_call(String filePath, org.apache.thrift.async.AsyncMethodCallback<createSuccinctFile_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
+        this.filePath = filePath;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
-        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getServerOffset", org.apache.thrift.protocol.TMessageType.CALL, 0));
-        getServerOffset_args args = new getServerOffset_args();
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("createSuccinctFile", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        createSuccinctFile_args args = new createSuccinctFile_args();
+        args.setFilePath(filePath);
         args.write(prot);
         prot.writeMessageEnd();
       }
 
-      public long getResult() throws org.apache.thrift.TException {
+      public int getResult() throws org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
         org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
         org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
-        return (new Client(prot)).recv_getServerOffset();
+        return (new Client(prot)).recv_createSuccinctFile();
+      }
+    }
+
+    public void openSuccinctFile(String fileName, org.apache.thrift.async.AsyncMethodCallback<openSuccinctFile_call> resultHandler) throws org.apache.thrift.TException {
+      checkReady();
+      openSuccinctFile_call method_call = new openSuccinctFile_call(fileName, resultHandler, this, ___protocolFactory, ___transport);
+      this.___currentMethod = method_call;
+      ___manager.call(method_call);
+    }
+
+    public static class openSuccinctFile_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private String fileName;
+      public openSuccinctFile_call(String fileName, org.apache.thrift.async.AsyncMethodCallback<openSuccinctFile_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.fileName = fileName;
+      }
+
+      public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("openSuccinctFile", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        openSuccinctFile_args args = new openSuccinctFile_args();
+        args.setFileName(fileName);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public int getResult() throws org.apache.thrift.TException {
+        if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
+        org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_openSuccinctFile();
       }
     }
 
@@ -427,55 +492,61 @@ public class SuccinctService {
       }
     }
 
-    public void getRange(String query, org.apache.thrift.async.AsyncMethodCallback<getRange_call> resultHandler) throws org.apache.thrift.TException {
+    public void getRanges(String query, org.apache.thrift.async.AsyncMethodCallback<getRanges_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      getRange_call method_call = new getRange_call(query, resultHandler, this, ___protocolFactory, ___transport);
+      getRanges_call method_call = new getRanges_call(query, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
-    public static class getRange_call extends org.apache.thrift.async.TAsyncMethodCall {
+    public static class getRanges_call extends org.apache.thrift.async.TAsyncMethodCall {
       private String query;
-      public getRange_call(String query, org.apache.thrift.async.AsyncMethodCallback<getRange_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      public getRanges_call(String query, org.apache.thrift.async.AsyncMethodCallback<getRanges_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.query = query;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
-        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getRange", org.apache.thrift.protocol.TMessageType.CALL, 0));
-        getRange_args args = new getRange_args();
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getRanges", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        getRanges_args args = new getRanges_args();
         args.setQuery(query);
         args.write(prot);
         prot.writeMessageEnd();
       }
 
-      public Range getResult() throws org.apache.thrift.TException {
+      public Map<Integer,Map<Integer,Range>> getResult() throws org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
         org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
         org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
-        return (new Client(prot)).recv_getRange();
+        return (new Client(prot)).recv_getRanges();
       }
     }
 
-    public void getLocation(long index, org.apache.thrift.async.AsyncMethodCallback<getLocation_call> resultHandler) throws org.apache.thrift.TException {
+    public void getLocation(int clientId, int serverId, long index, org.apache.thrift.async.AsyncMethodCallback<getLocation_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      getLocation_call method_call = new getLocation_call(index, resultHandler, this, ___protocolFactory, ___transport);
+      getLocation_call method_call = new getLocation_call(clientId, serverId, index, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
     public static class getLocation_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private int clientId;
+      private int serverId;
       private long index;
-      public getLocation_call(long index, org.apache.thrift.async.AsyncMethodCallback<getLocation_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      public getLocation_call(int clientId, int serverId, long index, org.apache.thrift.async.AsyncMethodCallback<getLocation_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
+        this.clientId = clientId;
+        this.serverId = serverId;
         this.index = index;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
         prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getLocation", org.apache.thrift.protocol.TMessageType.CALL, 0));
         getLocation_args args = new getLocation_args();
+        args.setClientId(clientId);
+        args.setServerId(serverId);
         args.setIndex(index);
         args.write(prot);
         prot.writeMessageEnd();
@@ -505,11 +576,12 @@ public class SuccinctService {
 
     private static <I extends Iface> Map<String,  org.apache.thrift.ProcessFunction<I, ? extends  org.apache.thrift.TBase>> getProcessMap(Map<String,  org.apache.thrift.ProcessFunction<I, ? extends  org.apache.thrift.TBase>> processMap) {
       processMap.put("initialize", new initialize());
-      processMap.put("getServerOffset", new getServerOffset());
+      processMap.put("createSuccinctFile", new createSuccinctFile());
+      processMap.put("openSuccinctFile", new openSuccinctFile());
       processMap.put("locate", new locate());
       processMap.put("count", new count());
       processMap.put("extract", new extract());
-      processMap.put("getRange", new getRange());
+      processMap.put("getRanges", new getRanges());
       processMap.put("getLocation", new getLocation());
       return processMap;
     }
@@ -535,22 +607,43 @@ public class SuccinctService {
       }
     }
 
-    public static class getServerOffset<I extends Iface> extends org.apache.thrift.ProcessFunction<I, getServerOffset_args> {
-      public getServerOffset() {
-        super("getServerOffset");
+    public static class createSuccinctFile<I extends Iface> extends org.apache.thrift.ProcessFunction<I, createSuccinctFile_args> {
+      public createSuccinctFile() {
+        super("createSuccinctFile");
       }
 
-      public getServerOffset_args getEmptyArgsInstance() {
-        return new getServerOffset_args();
+      public createSuccinctFile_args getEmptyArgsInstance() {
+        return new createSuccinctFile_args();
       }
 
       protected boolean isOneway() {
         return false;
       }
 
-      public getServerOffset_result getResult(I iface, getServerOffset_args args) throws org.apache.thrift.TException {
-        getServerOffset_result result = new getServerOffset_result();
-        result.success = iface.getServerOffset();
+      public createSuccinctFile_result getResult(I iface, createSuccinctFile_args args) throws org.apache.thrift.TException {
+        createSuccinctFile_result result = new createSuccinctFile_result();
+        result.success = iface.createSuccinctFile(args.filePath);
+        result.setSuccessIsSet(true);
+        return result;
+      }
+    }
+
+    public static class openSuccinctFile<I extends Iface> extends org.apache.thrift.ProcessFunction<I, openSuccinctFile_args> {
+      public openSuccinctFile() {
+        super("openSuccinctFile");
+      }
+
+      public openSuccinctFile_args getEmptyArgsInstance() {
+        return new openSuccinctFile_args();
+      }
+
+      protected boolean isOneway() {
+        return false;
+      }
+
+      public openSuccinctFile_result getResult(I iface, openSuccinctFile_args args) throws org.apache.thrift.TException {
+        openSuccinctFile_result result = new openSuccinctFile_result();
+        result.success = iface.openSuccinctFile(args.fileName);
         result.setSuccessIsSet(true);
         return result;
       }
@@ -617,22 +710,22 @@ public class SuccinctService {
       }
     }
 
-    public static class getRange<I extends Iface> extends org.apache.thrift.ProcessFunction<I, getRange_args> {
-      public getRange() {
-        super("getRange");
+    public static class getRanges<I extends Iface> extends org.apache.thrift.ProcessFunction<I, getRanges_args> {
+      public getRanges() {
+        super("getRanges");
       }
 
-      public getRange_args getEmptyArgsInstance() {
-        return new getRange_args();
+      public getRanges_args getEmptyArgsInstance() {
+        return new getRanges_args();
       }
 
       protected boolean isOneway() {
         return false;
       }
 
-      public getRange_result getResult(I iface, getRange_args args) throws org.apache.thrift.TException {
-        getRange_result result = new getRange_result();
-        result.success = iface.getRange(args.query);
+      public getRanges_result getResult(I iface, getRanges_args args) throws org.apache.thrift.TException {
+        getRanges_result result = new getRanges_result();
+        result.success = iface.getRanges(args.query);
         return result;
       }
     }
@@ -652,7 +745,7 @@ public class SuccinctService {
 
       public getLocation_result getResult(I iface, getLocation_args args) throws org.apache.thrift.TException {
         getLocation_result result = new getLocation_result();
-        result.success = iface.getLocation(args.index);
+        result.success = iface.getLocation(args.clientId, args.serverId, args.index);
         result.setSuccessIsSet(true);
         return result;
       }
@@ -1366,20 +1459,22 @@ public class SuccinctService {
 
   }
 
-  public static class getServerOffset_args implements org.apache.thrift.TBase<getServerOffset_args, getServerOffset_args._Fields>, java.io.Serializable, Cloneable   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getServerOffset_args");
+  public static class createSuccinctFile_args implements org.apache.thrift.TBase<createSuccinctFile_args, createSuccinctFile_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("createSuccinctFile_args");
 
+    private static final org.apache.thrift.protocol.TField FILE_PATH_FIELD_DESC = new org.apache.thrift.protocol.TField("filePath", org.apache.thrift.protocol.TType.STRING, (short)1);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new getServerOffset_argsStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new getServerOffset_argsTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new createSuccinctFile_argsStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new createSuccinctFile_argsTupleSchemeFactory());
     }
 
+    public String filePath; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-;
+      FILE_PATH((short)1, "filePath");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -1394,6 +1489,8 @@ public class SuccinctService {
        */
       public static _Fields findByThriftId(int fieldId) {
         switch(fieldId) {
+          case 1: // FILE_PATH
+            return FILE_PATH;
           default:
             return null;
         }
@@ -1432,37 +1529,87 @@ public class SuccinctService {
         return _fieldName;
       }
     }
+
+    // isset id assignments
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.FILE_PATH, new org.apache.thrift.meta_data.FieldMetaData("filePath", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getServerOffset_args.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(createSuccinctFile_args.class, metaDataMap);
     }
 
-    public getServerOffset_args() {
+    public createSuccinctFile_args() {
+    }
+
+    public createSuccinctFile_args(
+      String filePath)
+    {
+      this();
+      this.filePath = filePath;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getServerOffset_args(getServerOffset_args other) {
+    public createSuccinctFile_args(createSuccinctFile_args other) {
+      if (other.isSetFilePath()) {
+        this.filePath = other.filePath;
+      }
     }
 
-    public getServerOffset_args deepCopy() {
-      return new getServerOffset_args(this);
+    public createSuccinctFile_args deepCopy() {
+      return new createSuccinctFile_args(this);
     }
 
     @Override
     public void clear() {
+      this.filePath = null;
+    }
+
+    public String getFilePath() {
+      return this.filePath;
+    }
+
+    public createSuccinctFile_args setFilePath(String filePath) {
+      this.filePath = filePath;
+      return this;
+    }
+
+    public void unsetFilePath() {
+      this.filePath = null;
+    }
+
+    /** Returns true if field filePath is set (has been assigned a value) and false otherwise */
+    public boolean isSetFilePath() {
+      return this.filePath != null;
+    }
+
+    public void setFilePathIsSet(boolean value) {
+      if (!value) {
+        this.filePath = null;
+      }
     }
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case FILE_PATH:
+        if (value == null) {
+          unsetFilePath();
+        } else {
+          setFilePath((String)value);
+        }
+        break;
+
       }
     }
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case FILE_PATH:
+        return getFilePath();
+
       }
       throw new IllegalStateException();
     }
@@ -1474,6 +1621,8 @@ public class SuccinctService {
       }
 
       switch (field) {
+      case FILE_PATH:
+        return isSetFilePath();
       }
       throw new IllegalStateException();
     }
@@ -1482,14 +1631,23 @@ public class SuccinctService {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getServerOffset_args)
-        return this.equals((getServerOffset_args)that);
+      if (that instanceof createSuccinctFile_args)
+        return this.equals((createSuccinctFile_args)that);
       return false;
     }
 
-    public boolean equals(getServerOffset_args that) {
+    public boolean equals(createSuccinctFile_args that) {
       if (that == null)
         return false;
+
+      boolean this_present_filePath = true && this.isSetFilePath();
+      boolean that_present_filePath = true && that.isSetFilePath();
+      if (this_present_filePath || that_present_filePath) {
+        if (!(this_present_filePath && that_present_filePath))
+          return false;
+        if (!this.filePath.equals(that.filePath))
+          return false;
+      }
 
       return true;
     }
@@ -1499,14 +1657,24 @@ public class SuccinctService {
       return 0;
     }
 
-    public int compareTo(getServerOffset_args other) {
+    public int compareTo(createSuccinctFile_args other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      getServerOffset_args typedOther = (getServerOffset_args)other;
+      createSuccinctFile_args typedOther = (createSuccinctFile_args)other;
 
+      lastComparison = Boolean.valueOf(isSetFilePath()).compareTo(typedOther.isSetFilePath());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetFilePath()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.filePath, typedOther.filePath);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       return 0;
     }
 
@@ -1524,9 +1692,16 @@ public class SuccinctService {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getServerOffset_args(");
+      StringBuilder sb = new StringBuilder("createSuccinctFile_args(");
       boolean first = true;
 
+      sb.append("filePath:");
+      if (this.filePath == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.filePath);
+      }
+      first = false;
       sb.append(")");
       return sb.toString();
     }
@@ -1552,15 +1727,15 @@ public class SuccinctService {
       }
     }
 
-    private static class getServerOffset_argsStandardSchemeFactory implements SchemeFactory {
-      public getServerOffset_argsStandardScheme getScheme() {
-        return new getServerOffset_argsStandardScheme();
+    private static class createSuccinctFile_argsStandardSchemeFactory implements SchemeFactory {
+      public createSuccinctFile_argsStandardScheme getScheme() {
+        return new createSuccinctFile_argsStandardScheme();
       }
     }
 
-    private static class getServerOffset_argsStandardScheme extends StandardScheme<getServerOffset_args> {
+    private static class createSuccinctFile_argsStandardScheme extends StandardScheme<createSuccinctFile_args> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, getServerOffset_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, createSuccinctFile_args struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -1570,6 +1745,14 @@ public class SuccinctService {
             break;
           }
           switch (schemeField.id) {
+            case 1: // FILE_PATH
+              if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                struct.filePath = iprot.readString();
+                struct.setFilePathIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
             default:
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
           }
@@ -1581,49 +1764,67 @@ public class SuccinctService {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, getServerOffset_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, createSuccinctFile_args struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
+        if (struct.filePath != null) {
+          oprot.writeFieldBegin(FILE_PATH_FIELD_DESC);
+          oprot.writeString(struct.filePath);
+          oprot.writeFieldEnd();
+        }
         oprot.writeFieldStop();
         oprot.writeStructEnd();
       }
 
     }
 
-    private static class getServerOffset_argsTupleSchemeFactory implements SchemeFactory {
-      public getServerOffset_argsTupleScheme getScheme() {
-        return new getServerOffset_argsTupleScheme();
+    private static class createSuccinctFile_argsTupleSchemeFactory implements SchemeFactory {
+      public createSuccinctFile_argsTupleScheme getScheme() {
+        return new createSuccinctFile_argsTupleScheme();
       }
     }
 
-    private static class getServerOffset_argsTupleScheme extends TupleScheme<getServerOffset_args> {
+    private static class createSuccinctFile_argsTupleScheme extends TupleScheme<createSuccinctFile_args> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, getServerOffset_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, createSuccinctFile_args struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
+        BitSet optionals = new BitSet();
+        if (struct.isSetFilePath()) {
+          optionals.set(0);
+        }
+        oprot.writeBitSet(optionals, 1);
+        if (struct.isSetFilePath()) {
+          oprot.writeString(struct.filePath);
+        }
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, getServerOffset_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, createSuccinctFile_args struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
+        BitSet incoming = iprot.readBitSet(1);
+        if (incoming.get(0)) {
+          struct.filePath = iprot.readString();
+          struct.setFilePathIsSet(true);
+        }
       }
     }
 
   }
 
-  public static class getServerOffset_result implements org.apache.thrift.TBase<getServerOffset_result, getServerOffset_result._Fields>, java.io.Serializable, Cloneable   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getServerOffset_result");
+  public static class createSuccinctFile_result implements org.apache.thrift.TBase<createSuccinctFile_result, createSuccinctFile_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("createSuccinctFile_result");
 
-    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.I64, (short)0);
+    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.I32, (short)0);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new getServerOffset_resultStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new getServerOffset_resultTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new createSuccinctFile_resultStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new createSuccinctFile_resultTupleSchemeFactory());
     }
 
-    public long success; // required
+    public int success; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -1690,16 +1891,16 @@ public class SuccinctService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getServerOffset_result.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(createSuccinctFile_result.class, metaDataMap);
     }
 
-    public getServerOffset_result() {
+    public createSuccinctFile_result() {
     }
 
-    public getServerOffset_result(
-      long success)
+    public createSuccinctFile_result(
+      int success)
     {
       this();
       this.success = success;
@@ -1709,13 +1910,13 @@ public class SuccinctService {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getServerOffset_result(getServerOffset_result other) {
+    public createSuccinctFile_result(createSuccinctFile_result other) {
       __isset_bitfield = other.__isset_bitfield;
       this.success = other.success;
     }
 
-    public getServerOffset_result deepCopy() {
-      return new getServerOffset_result(this);
+    public createSuccinctFile_result deepCopy() {
+      return new createSuccinctFile_result(this);
     }
 
     @Override
@@ -1724,11 +1925,11 @@ public class SuccinctService {
       this.success = 0;
     }
 
-    public long getSuccess() {
+    public int getSuccess() {
       return this.success;
     }
 
-    public getServerOffset_result setSuccess(long success) {
+    public createSuccinctFile_result setSuccess(int success) {
       this.success = success;
       setSuccessIsSet(true);
       return this;
@@ -1753,7 +1954,7 @@ public class SuccinctService {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Long)value);
+          setSuccess((Integer)value);
         }
         break;
 
@@ -1763,7 +1964,7 @@ public class SuccinctService {
     public Object getFieldValue(_Fields field) {
       switch (field) {
       case SUCCESS:
-        return Long.valueOf(getSuccess());
+        return Integer.valueOf(getSuccess());
 
       }
       throw new IllegalStateException();
@@ -1786,12 +1987,12 @@ public class SuccinctService {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getServerOffset_result)
-        return this.equals((getServerOffset_result)that);
+      if (that instanceof createSuccinctFile_result)
+        return this.equals((createSuccinctFile_result)that);
       return false;
     }
 
-    public boolean equals(getServerOffset_result that) {
+    public boolean equals(createSuccinctFile_result that) {
       if (that == null)
         return false;
 
@@ -1812,13 +2013,13 @@ public class SuccinctService {
       return 0;
     }
 
-    public int compareTo(getServerOffset_result other) {
+    public int compareTo(createSuccinctFile_result other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      getServerOffset_result typedOther = (getServerOffset_result)other;
+      createSuccinctFile_result typedOther = (createSuccinctFile_result)other;
 
       lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
@@ -1847,7 +2048,7 @@ public class SuccinctService {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getServerOffset_result(");
+      StringBuilder sb = new StringBuilder("createSuccinctFile_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -1880,15 +2081,15 @@ public class SuccinctService {
       }
     }
 
-    private static class getServerOffset_resultStandardSchemeFactory implements SchemeFactory {
-      public getServerOffset_resultStandardScheme getScheme() {
-        return new getServerOffset_resultStandardScheme();
+    private static class createSuccinctFile_resultStandardSchemeFactory implements SchemeFactory {
+      public createSuccinctFile_resultStandardScheme getScheme() {
+        return new createSuccinctFile_resultStandardScheme();
       }
     }
 
-    private static class getServerOffset_resultStandardScheme extends StandardScheme<getServerOffset_result> {
+    private static class createSuccinctFile_resultStandardScheme extends StandardScheme<createSuccinctFile_result> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, getServerOffset_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, createSuccinctFile_result struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -1899,8 +2100,8 @@ public class SuccinctService {
           }
           switch (schemeField.id) {
             case 0: // SUCCESS
-              if (schemeField.type == org.apache.thrift.protocol.TType.I64) {
-                struct.success = iprot.readI64();
+              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                struct.success = iprot.readI32();
                 struct.setSuccessIsSet(true);
               } else { 
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
@@ -1917,13 +2118,13 @@ public class SuccinctService {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, getServerOffset_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, createSuccinctFile_result struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
         if (struct.isSetSuccess()) {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-          oprot.writeI64(struct.success);
+          oprot.writeI32(struct.success);
           oprot.writeFieldEnd();
         }
         oprot.writeFieldStop();
@@ -1932,16 +2133,16 @@ public class SuccinctService {
 
     }
 
-    private static class getServerOffset_resultTupleSchemeFactory implements SchemeFactory {
-      public getServerOffset_resultTupleScheme getScheme() {
-        return new getServerOffset_resultTupleScheme();
+    private static class createSuccinctFile_resultTupleSchemeFactory implements SchemeFactory {
+      public createSuccinctFile_resultTupleScheme getScheme() {
+        return new createSuccinctFile_resultTupleScheme();
       }
     }
 
-    private static class getServerOffset_resultTupleScheme extends TupleScheme<getServerOffset_result> {
+    private static class createSuccinctFile_resultTupleScheme extends TupleScheme<createSuccinctFile_result> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, getServerOffset_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, createSuccinctFile_result struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
         if (struct.isSetSuccess()) {
@@ -1949,16 +2150,724 @@ public class SuccinctService {
         }
         oprot.writeBitSet(optionals, 1);
         if (struct.isSetSuccess()) {
-          oprot.writeI64(struct.success);
+          oprot.writeI32(struct.success);
         }
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, getServerOffset_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, createSuccinctFile_result struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.success = iprot.readI64();
+          struct.success = iprot.readI32();
+          struct.setSuccessIsSet(true);
+        }
+      }
+    }
+
+  }
+
+  public static class openSuccinctFile_args implements org.apache.thrift.TBase<openSuccinctFile_args, openSuccinctFile_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("openSuccinctFile_args");
+
+    private static final org.apache.thrift.protocol.TField FILE_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("fileName", org.apache.thrift.protocol.TType.STRING, (short)1);
+
+    private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+    static {
+      schemes.put(StandardScheme.class, new openSuccinctFile_argsStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new openSuccinctFile_argsTupleSchemeFactory());
+    }
+
+    public String fileName; // required
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+      FILE_NAME((short)1, "fileName");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // FILE_NAME
+            return FILE_NAME;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.FILE_NAME, new org.apache.thrift.meta_data.FieldMetaData("fileName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(openSuccinctFile_args.class, metaDataMap);
+    }
+
+    public openSuccinctFile_args() {
+    }
+
+    public openSuccinctFile_args(
+      String fileName)
+    {
+      this();
+      this.fileName = fileName;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public openSuccinctFile_args(openSuccinctFile_args other) {
+      if (other.isSetFileName()) {
+        this.fileName = other.fileName;
+      }
+    }
+
+    public openSuccinctFile_args deepCopy() {
+      return new openSuccinctFile_args(this);
+    }
+
+    @Override
+    public void clear() {
+      this.fileName = null;
+    }
+
+    public String getFileName() {
+      return this.fileName;
+    }
+
+    public openSuccinctFile_args setFileName(String fileName) {
+      this.fileName = fileName;
+      return this;
+    }
+
+    public void unsetFileName() {
+      this.fileName = null;
+    }
+
+    /** Returns true if field fileName is set (has been assigned a value) and false otherwise */
+    public boolean isSetFileName() {
+      return this.fileName != null;
+    }
+
+    public void setFileNameIsSet(boolean value) {
+      if (!value) {
+        this.fileName = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case FILE_NAME:
+        if (value == null) {
+          unsetFileName();
+        } else {
+          setFileName((String)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case FILE_NAME:
+        return getFileName();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case FILE_NAME:
+        return isSetFileName();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof openSuccinctFile_args)
+        return this.equals((openSuccinctFile_args)that);
+      return false;
+    }
+
+    public boolean equals(openSuccinctFile_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_fileName = true && this.isSetFileName();
+      boolean that_present_fileName = true && that.isSetFileName();
+      if (this_present_fileName || that_present_fileName) {
+        if (!(this_present_fileName && that_present_fileName))
+          return false;
+        if (!this.fileName.equals(that.fileName))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(openSuccinctFile_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      openSuccinctFile_args typedOther = (openSuccinctFile_args)other;
+
+      lastComparison = Boolean.valueOf(isSetFileName()).compareTo(typedOther.isSetFileName());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetFileName()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.fileName, typedOther.fileName);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      schemes.get(iprot.getScheme()).getScheme().read(iprot, this);
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      schemes.get(oprot.getScheme()).getScheme().write(oprot, this);
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("openSuccinctFile_args(");
+      boolean first = true;
+
+      sb.append("fileName:");
+      if (this.fileName == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.fileName);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+      // check for sub-struct validity
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+      try {
+        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+      try {
+        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private static class openSuccinctFile_argsStandardSchemeFactory implements SchemeFactory {
+      public openSuccinctFile_argsStandardScheme getScheme() {
+        return new openSuccinctFile_argsStandardScheme();
+      }
+    }
+
+    private static class openSuccinctFile_argsStandardScheme extends StandardScheme<openSuccinctFile_args> {
+
+      public void read(org.apache.thrift.protocol.TProtocol iprot, openSuccinctFile_args struct) throws org.apache.thrift.TException {
+        org.apache.thrift.protocol.TField schemeField;
+        iprot.readStructBegin();
+        while (true)
+        {
+          schemeField = iprot.readFieldBegin();
+          if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
+            break;
+          }
+          switch (schemeField.id) {
+            case 1: // FILE_NAME
+              if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                struct.fileName = iprot.readString();
+                struct.setFileNameIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            default:
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+          }
+          iprot.readFieldEnd();
+        }
+        iprot.readStructEnd();
+
+        // check for required fields of primitive type, which can't be checked in the validate method
+        struct.validate();
+      }
+
+      public void write(org.apache.thrift.protocol.TProtocol oprot, openSuccinctFile_args struct) throws org.apache.thrift.TException {
+        struct.validate();
+
+        oprot.writeStructBegin(STRUCT_DESC);
+        if (struct.fileName != null) {
+          oprot.writeFieldBegin(FILE_NAME_FIELD_DESC);
+          oprot.writeString(struct.fileName);
+          oprot.writeFieldEnd();
+        }
+        oprot.writeFieldStop();
+        oprot.writeStructEnd();
+      }
+
+    }
+
+    private static class openSuccinctFile_argsTupleSchemeFactory implements SchemeFactory {
+      public openSuccinctFile_argsTupleScheme getScheme() {
+        return new openSuccinctFile_argsTupleScheme();
+      }
+    }
+
+    private static class openSuccinctFile_argsTupleScheme extends TupleScheme<openSuccinctFile_args> {
+
+      @Override
+      public void write(org.apache.thrift.protocol.TProtocol prot, openSuccinctFile_args struct) throws org.apache.thrift.TException {
+        TTupleProtocol oprot = (TTupleProtocol) prot;
+        BitSet optionals = new BitSet();
+        if (struct.isSetFileName()) {
+          optionals.set(0);
+        }
+        oprot.writeBitSet(optionals, 1);
+        if (struct.isSetFileName()) {
+          oprot.writeString(struct.fileName);
+        }
+      }
+
+      @Override
+      public void read(org.apache.thrift.protocol.TProtocol prot, openSuccinctFile_args struct) throws org.apache.thrift.TException {
+        TTupleProtocol iprot = (TTupleProtocol) prot;
+        BitSet incoming = iprot.readBitSet(1);
+        if (incoming.get(0)) {
+          struct.fileName = iprot.readString();
+          struct.setFileNameIsSet(true);
+        }
+      }
+    }
+
+  }
+
+  public static class openSuccinctFile_result implements org.apache.thrift.TBase<openSuccinctFile_result, openSuccinctFile_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("openSuccinctFile_result");
+
+    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.I32, (short)0);
+
+    private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+    static {
+      schemes.put(StandardScheme.class, new openSuccinctFile_resultStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new openSuccinctFile_resultTupleSchemeFactory());
+    }
+
+    public int success; // required
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+      SUCCESS((short)0, "success");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+    private static final int __SUCCESS_ISSET_ID = 0;
+    private byte __isset_bitfield = 0;
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(openSuccinctFile_result.class, metaDataMap);
+    }
+
+    public openSuccinctFile_result() {
+    }
+
+    public openSuccinctFile_result(
+      int success)
+    {
+      this();
+      this.success = success;
+      setSuccessIsSet(true);
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public openSuccinctFile_result(openSuccinctFile_result other) {
+      __isset_bitfield = other.__isset_bitfield;
+      this.success = other.success;
+    }
+
+    public openSuccinctFile_result deepCopy() {
+      return new openSuccinctFile_result(this);
+    }
+
+    @Override
+    public void clear() {
+      setSuccessIsSet(false);
+      this.success = 0;
+    }
+
+    public int getSuccess() {
+      return this.success;
+    }
+
+    public openSuccinctFile_result setSuccess(int success) {
+      this.success = success;
+      setSuccessIsSet(true);
+      return this;
+    }
+
+    public void unsetSuccess() {
+      __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SUCCESS_ISSET_ID);
+    }
+
+    /** Returns true if field success is set (has been assigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return EncodingUtils.testBit(__isset_bitfield, __SUCCESS_ISSET_ID);
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __SUCCESS_ISSET_ID, value);
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((Integer)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return Integer.valueOf(getSuccess());
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof openSuccinctFile_result)
+        return this.equals((openSuccinctFile_result)that);
+      return false;
+    }
+
+    public boolean equals(openSuccinctFile_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true;
+      boolean that_present_success = true;
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (this.success != that.success)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(openSuccinctFile_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      openSuccinctFile_result typedOther = (openSuccinctFile_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      schemes.get(iprot.getScheme()).getScheme().read(iprot, this);
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      schemes.get(oprot.getScheme()).getScheme().write(oprot, this);
+      }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("openSuccinctFile_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      sb.append(this.success);
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+      // check for sub-struct validity
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+      try {
+        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+      try {
+        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+        __isset_bitfield = 0;
+        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private static class openSuccinctFile_resultStandardSchemeFactory implements SchemeFactory {
+      public openSuccinctFile_resultStandardScheme getScheme() {
+        return new openSuccinctFile_resultStandardScheme();
+      }
+    }
+
+    private static class openSuccinctFile_resultStandardScheme extends StandardScheme<openSuccinctFile_result> {
+
+      public void read(org.apache.thrift.protocol.TProtocol iprot, openSuccinctFile_result struct) throws org.apache.thrift.TException {
+        org.apache.thrift.protocol.TField schemeField;
+        iprot.readStructBegin();
+        while (true)
+        {
+          schemeField = iprot.readFieldBegin();
+          if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
+            break;
+          }
+          switch (schemeField.id) {
+            case 0: // SUCCESS
+              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                struct.success = iprot.readI32();
+                struct.setSuccessIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            default:
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+          }
+          iprot.readFieldEnd();
+        }
+        iprot.readStructEnd();
+
+        // check for required fields of primitive type, which can't be checked in the validate method
+        struct.validate();
+      }
+
+      public void write(org.apache.thrift.protocol.TProtocol oprot, openSuccinctFile_result struct) throws org.apache.thrift.TException {
+        struct.validate();
+
+        oprot.writeStructBegin(STRUCT_DESC);
+        if (struct.isSetSuccess()) {
+          oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+          oprot.writeI32(struct.success);
+          oprot.writeFieldEnd();
+        }
+        oprot.writeFieldStop();
+        oprot.writeStructEnd();
+      }
+
+    }
+
+    private static class openSuccinctFile_resultTupleSchemeFactory implements SchemeFactory {
+      public openSuccinctFile_resultTupleScheme getScheme() {
+        return new openSuccinctFile_resultTupleScheme();
+      }
+    }
+
+    private static class openSuccinctFile_resultTupleScheme extends TupleScheme<openSuccinctFile_result> {
+
+      @Override
+      public void write(org.apache.thrift.protocol.TProtocol prot, openSuccinctFile_result struct) throws org.apache.thrift.TException {
+        TTupleProtocol oprot = (TTupleProtocol) prot;
+        BitSet optionals = new BitSet();
+        if (struct.isSetSuccess()) {
+          optionals.set(0);
+        }
+        oprot.writeBitSet(optionals, 1);
+        if (struct.isSetSuccess()) {
+          oprot.writeI32(struct.success);
+        }
+      }
+
+      @Override
+      public void read(org.apache.thrift.protocol.TProtocol prot, openSuccinctFile_result struct) throws org.apache.thrift.TException {
+        TTupleProtocol iprot = (TTupleProtocol) prot;
+        BitSet incoming = iprot.readBitSet(1);
+        if (incoming.get(0)) {
+          struct.success = iprot.readI32();
           struct.setSuccessIsSet(true);
         }
       }
@@ -2629,13 +3538,13 @@ public class SuccinctService {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list46 = iprot.readListBegin();
-                  struct.success = new ArrayList<Long>(_list46.size);
-                  for (int _i47 = 0; _i47 < _list46.size; ++_i47)
+                  org.apache.thrift.protocol.TList _list0 = iprot.readListBegin();
+                  struct.success = new ArrayList<Long>(_list0.size);
+                  for (int _i1 = 0; _i1 < _list0.size; ++_i1)
                   {
-                    long _elem48; // required
-                    _elem48 = iprot.readI64();
-                    struct.success.add(_elem48);
+                    long _elem2; // required
+                    _elem2 = iprot.readI64();
+                    struct.success.add(_elem2);
                   }
                   iprot.readListEnd();
                 }
@@ -2663,9 +3572,9 @@ public class SuccinctService {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I64, struct.success.size()));
-            for (long _iter49 : struct.success)
+            for (long _iter3 : struct.success)
             {
-              oprot.writeI64(_iter49);
+              oprot.writeI64(_iter3);
             }
             oprot.writeListEnd();
           }
@@ -2696,9 +3605,9 @@ public class SuccinctService {
         if (struct.isSetSuccess()) {
           {
             oprot.writeI32(struct.success.size());
-            for (long _iter50 : struct.success)
+            for (long _iter4 : struct.success)
             {
-              oprot.writeI64(_iter50);
+              oprot.writeI64(_iter4);
             }
           }
         }
@@ -2710,13 +3619,13 @@ public class SuccinctService {
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
           {
-            org.apache.thrift.protocol.TList _list51 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I64, iprot.readI32());
-            struct.success = new ArrayList<Long>(_list51.size);
-            for (int _i52 = 0; _i52 < _list51.size; ++_i52)
+            org.apache.thrift.protocol.TList _list5 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I64, iprot.readI32());
+            struct.success = new ArrayList<Long>(_list5.size);
+            for (int _i6 = 0; _i6 < _list5.size; ++_i6)
             {
-              long _elem53; // required
-              _elem53 = iprot.readI64();
-              struct.success.add(_elem53);
+              long _elem7; // required
+              _elem7 = iprot.readI64();
+              struct.success.add(_elem7);
             }
           }
           struct.setSuccessIsSet(true);
@@ -4234,15 +5143,15 @@ public class SuccinctService {
 
   }
 
-  public static class getRange_args implements org.apache.thrift.TBase<getRange_args, getRange_args._Fields>, java.io.Serializable, Cloneable   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getRange_args");
+  public static class getRanges_args implements org.apache.thrift.TBase<getRanges_args, getRanges_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getRanges_args");
 
     private static final org.apache.thrift.protocol.TField QUERY_FIELD_DESC = new org.apache.thrift.protocol.TField("query", org.apache.thrift.protocol.TType.STRING, (short)1);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new getRange_argsStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new getRange_argsTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new getRanges_argsStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new getRanges_argsTupleSchemeFactory());
     }
 
     public String query; // required
@@ -4312,13 +5221,13 @@ public class SuccinctService {
       tmpMap.put(_Fields.QUERY, new org.apache.thrift.meta_data.FieldMetaData("query", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getRange_args.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getRanges_args.class, metaDataMap);
     }
 
-    public getRange_args() {
+    public getRanges_args() {
     }
 
-    public getRange_args(
+    public getRanges_args(
       String query)
     {
       this();
@@ -4328,14 +5237,14 @@ public class SuccinctService {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getRange_args(getRange_args other) {
+    public getRanges_args(getRanges_args other) {
       if (other.isSetQuery()) {
         this.query = other.query;
       }
     }
 
-    public getRange_args deepCopy() {
-      return new getRange_args(this);
+    public getRanges_args deepCopy() {
+      return new getRanges_args(this);
     }
 
     @Override
@@ -4347,7 +5256,7 @@ public class SuccinctService {
       return this.query;
     }
 
-    public getRange_args setQuery(String query) {
+    public getRanges_args setQuery(String query) {
       this.query = query;
       return this;
     }
@@ -4406,12 +5315,12 @@ public class SuccinctService {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getRange_args)
-        return this.equals((getRange_args)that);
+      if (that instanceof getRanges_args)
+        return this.equals((getRanges_args)that);
       return false;
     }
 
-    public boolean equals(getRange_args that) {
+    public boolean equals(getRanges_args that) {
       if (that == null)
         return false;
 
@@ -4432,13 +5341,13 @@ public class SuccinctService {
       return 0;
     }
 
-    public int compareTo(getRange_args other) {
+    public int compareTo(getRanges_args other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      getRange_args typedOther = (getRange_args)other;
+      getRanges_args typedOther = (getRanges_args)other;
 
       lastComparison = Boolean.valueOf(isSetQuery()).compareTo(typedOther.isSetQuery());
       if (lastComparison != 0) {
@@ -4467,7 +5376,7 @@ public class SuccinctService {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getRange_args(");
+      StringBuilder sb = new StringBuilder("getRanges_args(");
       boolean first = true;
 
       sb.append("query:");
@@ -4502,15 +5411,15 @@ public class SuccinctService {
       }
     }
 
-    private static class getRange_argsStandardSchemeFactory implements SchemeFactory {
-      public getRange_argsStandardScheme getScheme() {
-        return new getRange_argsStandardScheme();
+    private static class getRanges_argsStandardSchemeFactory implements SchemeFactory {
+      public getRanges_argsStandardScheme getScheme() {
+        return new getRanges_argsStandardScheme();
       }
     }
 
-    private static class getRange_argsStandardScheme extends StandardScheme<getRange_args> {
+    private static class getRanges_argsStandardScheme extends StandardScheme<getRanges_args> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, getRange_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, getRanges_args struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -4539,7 +5448,7 @@ public class SuccinctService {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, getRange_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, getRanges_args struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
@@ -4554,16 +5463,16 @@ public class SuccinctService {
 
     }
 
-    private static class getRange_argsTupleSchemeFactory implements SchemeFactory {
-      public getRange_argsTupleScheme getScheme() {
-        return new getRange_argsTupleScheme();
+    private static class getRanges_argsTupleSchemeFactory implements SchemeFactory {
+      public getRanges_argsTupleScheme getScheme() {
+        return new getRanges_argsTupleScheme();
       }
     }
 
-    private static class getRange_argsTupleScheme extends TupleScheme<getRange_args> {
+    private static class getRanges_argsTupleScheme extends TupleScheme<getRanges_args> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, getRange_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, getRanges_args struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
         if (struct.isSetQuery()) {
@@ -4576,7 +5485,7 @@ public class SuccinctService {
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, getRange_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, getRanges_args struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
@@ -4588,18 +5497,18 @@ public class SuccinctService {
 
   }
 
-  public static class getRange_result implements org.apache.thrift.TBase<getRange_result, getRange_result._Fields>, java.io.Serializable, Cloneable   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getRange_result");
+  public static class getRanges_result implements org.apache.thrift.TBase<getRanges_result, getRanges_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getRanges_result");
 
-    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.STRUCT, (short)0);
+    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.MAP, (short)0);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new getRange_resultStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new getRange_resultTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new getRanges_resultStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new getRanges_resultTupleSchemeFactory());
     }
 
-    public Range success; // required
+    public Map<Integer,Map<Integer,Range>> success; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -4664,16 +5573,20 @@ public class SuccinctService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Range.class)));
+          new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32), 
+              new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
+                  new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32), 
+                  new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Range.class)))));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getRange_result.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getRanges_result.class, metaDataMap);
     }
 
-    public getRange_result() {
+    public getRanges_result() {
     }
 
-    public getRange_result(
-      Range success)
+    public getRanges_result(
+      Map<Integer,Map<Integer,Range>> success)
     {
       this();
       this.success = success;
@@ -4682,14 +5595,37 @@ public class SuccinctService {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getRange_result(getRange_result other) {
+    public getRanges_result(getRanges_result other) {
       if (other.isSetSuccess()) {
-        this.success = new Range(other.success);
+        Map<Integer,Map<Integer,Range>> __this__success = new HashMap<Integer,Map<Integer,Range>>();
+        for (Map.Entry<Integer, Map<Integer,Range>> other_element : other.success.entrySet()) {
+
+          Integer other_element_key = other_element.getKey();
+          Map<Integer,Range> other_element_value = other_element.getValue();
+
+          Integer __this__success_copy_key = other_element_key;
+
+          Map<Integer,Range> __this__success_copy_value = new HashMap<Integer,Range>();
+          for (Map.Entry<Integer, Range> other_element_value_element : other_element_value.entrySet()) {
+
+            Integer other_element_value_element_key = other_element_value_element.getKey();
+            Range other_element_value_element_value = other_element_value_element.getValue();
+
+            Integer __this__success_copy_value_copy_key = other_element_value_element_key;
+
+            Range __this__success_copy_value_copy_value = new Range(other_element_value_element_value);
+
+            __this__success_copy_value.put(__this__success_copy_value_copy_key, __this__success_copy_value_copy_value);
+          }
+
+          __this__success.put(__this__success_copy_key, __this__success_copy_value);
+        }
+        this.success = __this__success;
       }
     }
 
-    public getRange_result deepCopy() {
-      return new getRange_result(this);
+    public getRanges_result deepCopy() {
+      return new getRanges_result(this);
     }
 
     @Override
@@ -4697,11 +5633,22 @@ public class SuccinctService {
       this.success = null;
     }
 
-    public Range getSuccess() {
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(int key, Map<Integer,Range> val) {
+      if (this.success == null) {
+        this.success = new HashMap<Integer,Map<Integer,Range>>();
+      }
+      this.success.put(key, val);
+    }
+
+    public Map<Integer,Map<Integer,Range>> getSuccess() {
       return this.success;
     }
 
-    public getRange_result setSuccess(Range success) {
+    public getRanges_result setSuccess(Map<Integer,Map<Integer,Range>> success) {
       this.success = success;
       return this;
     }
@@ -4727,7 +5674,7 @@ public class SuccinctService {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((Range)value);
+          setSuccess((Map<Integer,Map<Integer,Range>>)value);
         }
         break;
 
@@ -4760,12 +5707,12 @@ public class SuccinctService {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getRange_result)
-        return this.equals((getRange_result)that);
+      if (that instanceof getRanges_result)
+        return this.equals((getRanges_result)that);
       return false;
     }
 
-    public boolean equals(getRange_result that) {
+    public boolean equals(getRanges_result that) {
       if (that == null)
         return false;
 
@@ -4786,13 +5733,13 @@ public class SuccinctService {
       return 0;
     }
 
-    public int compareTo(getRange_result other) {
+    public int compareTo(getRanges_result other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
 
       int lastComparison = 0;
-      getRange_result typedOther = (getRange_result)other;
+      getRanges_result typedOther = (getRanges_result)other;
 
       lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
@@ -4821,7 +5768,7 @@ public class SuccinctService {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getRange_result(");
+      StringBuilder sb = new StringBuilder("getRanges_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -4838,9 +5785,6 @@ public class SuccinctService {
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
       // check for sub-struct validity
-      if (success != null) {
-        success.validate();
-      }
     }
 
     private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
@@ -4859,15 +5803,15 @@ public class SuccinctService {
       }
     }
 
-    private static class getRange_resultStandardSchemeFactory implements SchemeFactory {
-      public getRange_resultStandardScheme getScheme() {
-        return new getRange_resultStandardScheme();
+    private static class getRanges_resultStandardSchemeFactory implements SchemeFactory {
+      public getRanges_resultStandardScheme getScheme() {
+        return new getRanges_resultStandardScheme();
       }
     }
 
-    private static class getRange_resultStandardScheme extends StandardScheme<getRange_result> {
+    private static class getRanges_resultStandardScheme extends StandardScheme<getRanges_result> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, getRange_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, getRanges_result struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -4878,9 +5822,33 @@ public class SuccinctService {
           }
           switch (schemeField.id) {
             case 0: // SUCCESS
-              if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.success = new Range();
-                struct.success.read(iprot);
+              if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
+                {
+                  org.apache.thrift.protocol.TMap _map8 = iprot.readMapBegin();
+                  struct.success = new HashMap<Integer,Map<Integer,Range>>(2*_map8.size);
+                  for (int _i9 = 0; _i9 < _map8.size; ++_i9)
+                  {
+                    int _key10; // required
+                    Map<Integer,Range> _val11; // required
+                    _key10 = iprot.readI32();
+                    {
+                      org.apache.thrift.protocol.TMap _map12 = iprot.readMapBegin();
+                      _val11 = new HashMap<Integer,Range>(2*_map12.size);
+                      for (int _i13 = 0; _i13 < _map12.size; ++_i13)
+                      {
+                        int _key14; // required
+                        Range _val15; // required
+                        _key14 = iprot.readI32();
+                        _val15 = new Range();
+                        _val15.read(iprot);
+                        _val11.put(_key14, _val15);
+                      }
+                      iprot.readMapEnd();
+                    }
+                    struct.success.put(_key10, _val11);
+                  }
+                  iprot.readMapEnd();
+                }
                 struct.setSuccessIsSet(true);
               } else { 
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
@@ -4897,13 +5865,29 @@ public class SuccinctService {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, getRange_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, getRanges_result struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
         if (struct.success != null) {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-          struct.success.write(oprot);
+          {
+            oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.I32, org.apache.thrift.protocol.TType.MAP, struct.success.size()));
+            for (Map.Entry<Integer, Map<Integer,Range>> _iter16 : struct.success.entrySet())
+            {
+              oprot.writeI32(_iter16.getKey());
+              {
+                oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.I32, org.apache.thrift.protocol.TType.STRUCT, _iter16.getValue().size()));
+                for (Map.Entry<Integer, Range> _iter17 : _iter16.getValue().entrySet())
+                {
+                  oprot.writeI32(_iter17.getKey());
+                  _iter17.getValue().write(oprot);
+                }
+                oprot.writeMapEnd();
+              }
+            }
+            oprot.writeMapEnd();
+          }
           oprot.writeFieldEnd();
         }
         oprot.writeFieldStop();
@@ -4912,16 +5896,16 @@ public class SuccinctService {
 
     }
 
-    private static class getRange_resultTupleSchemeFactory implements SchemeFactory {
-      public getRange_resultTupleScheme getScheme() {
-        return new getRange_resultTupleScheme();
+    private static class getRanges_resultTupleSchemeFactory implements SchemeFactory {
+      public getRanges_resultTupleScheme getScheme() {
+        return new getRanges_resultTupleScheme();
       }
     }
 
-    private static class getRange_resultTupleScheme extends TupleScheme<getRange_result> {
+    private static class getRanges_resultTupleScheme extends TupleScheme<getRanges_result> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, getRange_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, getRanges_result struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
         if (struct.isSetSuccess()) {
@@ -4929,17 +5913,53 @@ public class SuccinctService {
         }
         oprot.writeBitSet(optionals, 1);
         if (struct.isSetSuccess()) {
-          struct.success.write(oprot);
+          {
+            oprot.writeI32(struct.success.size());
+            for (Map.Entry<Integer, Map<Integer,Range>> _iter18 : struct.success.entrySet())
+            {
+              oprot.writeI32(_iter18.getKey());
+              {
+                oprot.writeI32(_iter18.getValue().size());
+                for (Map.Entry<Integer, Range> _iter19 : _iter18.getValue().entrySet())
+                {
+                  oprot.writeI32(_iter19.getKey());
+                  _iter19.getValue().write(oprot);
+                }
+              }
+            }
+          }
         }
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, getRange_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, getRanges_result struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.success = new Range();
-          struct.success.read(iprot);
+          {
+            org.apache.thrift.protocol.TMap _map20 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.I32, org.apache.thrift.protocol.TType.MAP, iprot.readI32());
+            struct.success = new HashMap<Integer,Map<Integer,Range>>(2*_map20.size);
+            for (int _i21 = 0; _i21 < _map20.size; ++_i21)
+            {
+              int _key22; // required
+              Map<Integer,Range> _val23; // required
+              _key22 = iprot.readI32();
+              {
+                org.apache.thrift.protocol.TMap _map24 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.I32, org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+                _val23 = new HashMap<Integer,Range>(2*_map24.size);
+                for (int _i25 = 0; _i25 < _map24.size; ++_i25)
+                {
+                  int _key26; // required
+                  Range _val27; // required
+                  _key26 = iprot.readI32();
+                  _val27 = new Range();
+                  _val27.read(iprot);
+                  _val23.put(_key26, _val27);
+                }
+              }
+              struct.success.put(_key22, _val23);
+            }
+          }
           struct.setSuccessIsSet(true);
         }
       }
@@ -4950,7 +5970,9 @@ public class SuccinctService {
   public static class getLocation_args implements org.apache.thrift.TBase<getLocation_args, getLocation_args._Fields>, java.io.Serializable, Cloneable   {
     private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getLocation_args");
 
-    private static final org.apache.thrift.protocol.TField INDEX_FIELD_DESC = new org.apache.thrift.protocol.TField("index", org.apache.thrift.protocol.TType.I64, (short)1);
+    private static final org.apache.thrift.protocol.TField CLIENT_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("clientId", org.apache.thrift.protocol.TType.I32, (short)1);
+    private static final org.apache.thrift.protocol.TField SERVER_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("serverId", org.apache.thrift.protocol.TType.I32, (short)2);
+    private static final org.apache.thrift.protocol.TField INDEX_FIELD_DESC = new org.apache.thrift.protocol.TField("index", org.apache.thrift.protocol.TType.I64, (short)3);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
@@ -4958,11 +5980,15 @@ public class SuccinctService {
       schemes.put(TupleScheme.class, new getLocation_argsTupleSchemeFactory());
     }
 
+    public int clientId; // required
+    public int serverId; // required
     public long index; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-      INDEX((short)1, "index");
+      CLIENT_ID((short)1, "clientId"),
+      SERVER_ID((short)2, "serverId"),
+      INDEX((short)3, "index");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -4977,7 +6003,11 @@ public class SuccinctService {
        */
       public static _Fields findByThriftId(int fieldId) {
         switch(fieldId) {
-          case 1: // INDEX
+          case 1: // CLIENT_ID
+            return CLIENT_ID;
+          case 2: // SERVER_ID
+            return SERVER_ID;
+          case 3: // INDEX
             return INDEX;
           default:
             return null;
@@ -5019,11 +6049,17 @@ public class SuccinctService {
     }
 
     // isset id assignments
-    private static final int __INDEX_ISSET_ID = 0;
+    private static final int __CLIENTID_ISSET_ID = 0;
+    private static final int __SERVERID_ISSET_ID = 1;
+    private static final int __INDEX_ISSET_ID = 2;
     private byte __isset_bitfield = 0;
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.CLIENT_ID, new org.apache.thrift.meta_data.FieldMetaData("clientId", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+      tmpMap.put(_Fields.SERVER_ID, new org.apache.thrift.meta_data.FieldMetaData("serverId", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
       tmpMap.put(_Fields.INDEX, new org.apache.thrift.meta_data.FieldMetaData("index", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
@@ -5034,9 +6070,15 @@ public class SuccinctService {
     }
 
     public getLocation_args(
+      int clientId,
+      int serverId,
       long index)
     {
       this();
+      this.clientId = clientId;
+      setClientIdIsSet(true);
+      this.serverId = serverId;
+      setServerIdIsSet(true);
       this.index = index;
       setIndexIsSet(true);
     }
@@ -5046,6 +6088,8 @@ public class SuccinctService {
      */
     public getLocation_args(getLocation_args other) {
       __isset_bitfield = other.__isset_bitfield;
+      this.clientId = other.clientId;
+      this.serverId = other.serverId;
       this.index = other.index;
     }
 
@@ -5055,8 +6099,58 @@ public class SuccinctService {
 
     @Override
     public void clear() {
+      setClientIdIsSet(false);
+      this.clientId = 0;
+      setServerIdIsSet(false);
+      this.serverId = 0;
       setIndexIsSet(false);
       this.index = 0;
+    }
+
+    public int getClientId() {
+      return this.clientId;
+    }
+
+    public getLocation_args setClientId(int clientId) {
+      this.clientId = clientId;
+      setClientIdIsSet(true);
+      return this;
+    }
+
+    public void unsetClientId() {
+      __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __CLIENTID_ISSET_ID);
+    }
+
+    /** Returns true if field clientId is set (has been assigned a value) and false otherwise */
+    public boolean isSetClientId() {
+      return EncodingUtils.testBit(__isset_bitfield, __CLIENTID_ISSET_ID);
+    }
+
+    public void setClientIdIsSet(boolean value) {
+      __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __CLIENTID_ISSET_ID, value);
+    }
+
+    public int getServerId() {
+      return this.serverId;
+    }
+
+    public getLocation_args setServerId(int serverId) {
+      this.serverId = serverId;
+      setServerIdIsSet(true);
+      return this;
+    }
+
+    public void unsetServerId() {
+      __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SERVERID_ISSET_ID);
+    }
+
+    /** Returns true if field serverId is set (has been assigned a value) and false otherwise */
+    public boolean isSetServerId() {
+      return EncodingUtils.testBit(__isset_bitfield, __SERVERID_ISSET_ID);
+    }
+
+    public void setServerIdIsSet(boolean value) {
+      __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __SERVERID_ISSET_ID, value);
     }
 
     public long getIndex() {
@@ -5084,6 +6178,22 @@ public class SuccinctService {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case CLIENT_ID:
+        if (value == null) {
+          unsetClientId();
+        } else {
+          setClientId((Integer)value);
+        }
+        break;
+
+      case SERVER_ID:
+        if (value == null) {
+          unsetServerId();
+        } else {
+          setServerId((Integer)value);
+        }
+        break;
+
       case INDEX:
         if (value == null) {
           unsetIndex();
@@ -5097,6 +6207,12 @@ public class SuccinctService {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case CLIENT_ID:
+        return Integer.valueOf(getClientId());
+
+      case SERVER_ID:
+        return Integer.valueOf(getServerId());
+
       case INDEX:
         return Long.valueOf(getIndex());
 
@@ -5111,6 +6227,10 @@ public class SuccinctService {
       }
 
       switch (field) {
+      case CLIENT_ID:
+        return isSetClientId();
+      case SERVER_ID:
+        return isSetServerId();
       case INDEX:
         return isSetIndex();
       }
@@ -5129,6 +6249,24 @@ public class SuccinctService {
     public boolean equals(getLocation_args that) {
       if (that == null)
         return false;
+
+      boolean this_present_clientId = true;
+      boolean that_present_clientId = true;
+      if (this_present_clientId || that_present_clientId) {
+        if (!(this_present_clientId && that_present_clientId))
+          return false;
+        if (this.clientId != that.clientId)
+          return false;
+      }
+
+      boolean this_present_serverId = true;
+      boolean that_present_serverId = true;
+      if (this_present_serverId || that_present_serverId) {
+        if (!(this_present_serverId && that_present_serverId))
+          return false;
+        if (this.serverId != that.serverId)
+          return false;
+      }
 
       boolean this_present_index = true;
       boolean that_present_index = true;
@@ -5155,6 +6293,26 @@ public class SuccinctService {
       int lastComparison = 0;
       getLocation_args typedOther = (getLocation_args)other;
 
+      lastComparison = Boolean.valueOf(isSetClientId()).compareTo(typedOther.isSetClientId());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetClientId()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.clientId, typedOther.clientId);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetServerId()).compareTo(typedOther.isSetServerId());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetServerId()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.serverId, typedOther.serverId);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetIndex()).compareTo(typedOther.isSetIndex());
       if (lastComparison != 0) {
         return lastComparison;
@@ -5185,6 +6343,14 @@ public class SuccinctService {
       StringBuilder sb = new StringBuilder("getLocation_args(");
       boolean first = true;
 
+      sb.append("clientId:");
+      sb.append(this.clientId);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("serverId:");
+      sb.append(this.serverId);
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("index:");
       sb.append(this.index);
       first = false;
@@ -5233,7 +6399,23 @@ public class SuccinctService {
             break;
           }
           switch (schemeField.id) {
-            case 1: // INDEX
+            case 1: // CLIENT_ID
+              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                struct.clientId = iprot.readI32();
+                struct.setClientIdIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            case 2: // SERVER_ID
+              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                struct.serverId = iprot.readI32();
+                struct.setServerIdIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            case 3: // INDEX
               if (schemeField.type == org.apache.thrift.protocol.TType.I64) {
                 struct.index = iprot.readI64();
                 struct.setIndexIsSet(true);
@@ -5256,6 +6438,12 @@ public class SuccinctService {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
+        oprot.writeFieldBegin(CLIENT_ID_FIELD_DESC);
+        oprot.writeI32(struct.clientId);
+        oprot.writeFieldEnd();
+        oprot.writeFieldBegin(SERVER_ID_FIELD_DESC);
+        oprot.writeI32(struct.serverId);
+        oprot.writeFieldEnd();
         oprot.writeFieldBegin(INDEX_FIELD_DESC);
         oprot.writeI64(struct.index);
         oprot.writeFieldEnd();
@@ -5277,10 +6465,22 @@ public class SuccinctService {
       public void write(org.apache.thrift.protocol.TProtocol prot, getLocation_args struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
-        if (struct.isSetIndex()) {
+        if (struct.isSetClientId()) {
           optionals.set(0);
         }
-        oprot.writeBitSet(optionals, 1);
+        if (struct.isSetServerId()) {
+          optionals.set(1);
+        }
+        if (struct.isSetIndex()) {
+          optionals.set(2);
+        }
+        oprot.writeBitSet(optionals, 3);
+        if (struct.isSetClientId()) {
+          oprot.writeI32(struct.clientId);
+        }
+        if (struct.isSetServerId()) {
+          oprot.writeI32(struct.serverId);
+        }
         if (struct.isSetIndex()) {
           oprot.writeI64(struct.index);
         }
@@ -5289,8 +6489,16 @@ public class SuccinctService {
       @Override
       public void read(org.apache.thrift.protocol.TProtocol prot, getLocation_args struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
-        BitSet incoming = iprot.readBitSet(1);
+        BitSet incoming = iprot.readBitSet(3);
         if (incoming.get(0)) {
+          struct.clientId = iprot.readI32();
+          struct.setClientIdIsSet(true);
+        }
+        if (incoming.get(1)) {
+          struct.serverId = iprot.readI32();
+          struct.setServerIdIsSet(true);
+        }
+        if (incoming.get(2)) {
           struct.index = iprot.readI64();
           struct.setIndexIsSet(true);
         }

@@ -4,6 +4,6 @@
 
 bin=`cd "$( dirname "$0" )"; pwd`
 
-$bin/succinct-workers.sh
+$bin/succinctkv-workers.sh
 sleep 5
-$bin/succinct-master.sh
+$bin/succinctkv-master.sh

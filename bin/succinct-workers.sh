@@ -8,12 +8,10 @@ TACHYON_TARGET_DIR="$bin"/../target
 TACHYON_LOG_PATH="$bin"/../logs
 
 HOSTLIST=$TACHYON_CONF_DIR/slaves
-i=0
 for slave in `cat "$HOSTLIST"|sed  "s/#.*$//;/^$/d"`; do
-	cmd="$bin/succinct-client.sh $i"
+	cmd="$bin/succinct-worker.sh"
   	ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no $slave "$cmd" 2>&1 | sed "s/^/$slave: /" &
  	sleep 0.02
- 	i=$((i+1))
 done
 
 wait

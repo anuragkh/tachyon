@@ -28,9 +28,8 @@ fi
 now=$(date +"%Y-%m-%d_%H.%M.%S")
 HOSTLIST=$TACHYON_CONF_DIR/slaves
 HOSTS=`cat "$HOSTLIST"|sed  "s/#.*$//;/^$/d"`
-i=0
 for slave in $HOSTS; do
 	ARGS="$ARGS $slave"
 done
-echo "Starting SuccinctClient $1 @ `hostname`"
-(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="WORKER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.SuccinctClient $1 $MASTER_ADDRESS $ARGS > $TACHYON_LOGS_DIR/client.log@$now 2>&1) &
+echo "Starting SuccinctWorker @ `hostname`"
+(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="WORKER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.SuccinctWorker $MASTER_ADDRESS > $TACHYON_LOGS_DIR/succinct-worker.log@$now 2>&1) &

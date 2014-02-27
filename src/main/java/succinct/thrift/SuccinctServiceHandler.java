@@ -1,515 +1,1161 @@
 package succinct.thrift;
 
+import org.apache.thrift.TException;
+
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Scanner;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.TreeMap;
+import java.util.Iterator;
 
-import java.io.IOException;
 import java.io.File;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.IOException;
 
-import java.nio.file.Files;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.LongBuffer;
+import java.nio.IntBuffer;
 
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import tachyon.client.InStream;
+import tachyon.client.TachyonByteBuffer;
+import tachyon.client.TachyonFS;
+import tachyon.client.TachyonFile;
+import tachyon.client.ReadType;
+import tachyon.command.TFsShell;
+import tachyon.command.Utils;
 
-public class SuccinctServiceHandler implements SuccinctService.Iface {
+import org.apache.thrift.transport.TServerSocket;
+import org.apache.thrift.transport.TServerTransport;
+import org.apache.thrift.server.TServer;
+import org.apache.thrift.server.TServer.Args;
+import org.apache.thrift.server.TSimpleServer;
+import org.apache.thrift.server.TThreadPoolServer;
 
-	public final int PARTITION_HASH = 0;
-	public final int PARTITION_RETAIN = 1;
-	private int numServers = 1;
-	private byte delim = 10;
-	private int localHostId;
-	private int partitionScheme;
-	private String[] hostNames;
-	private long[] clientOffsets;
-	private long[] localServerOffsets;
-    private TreeMap<Long, Integer> clientOffsetMap;
-    private TreeMap<Long, Integer> localServerOffsetMap;
-	private ArrayList<TTransport> clientTransports;
-  	private ArrayList<SuccinctService.Client> clients;
-  	private ArrayList<TTransport> localTransports;
-  	private ArrayList<QueryService.Client> localServers;
-  	private String tachyonMasterAddress;
+public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
 
-  	// Move to better location
-  	public static final int CLIENT_BASE_PORT = 11000;
-  	public static final int SERVER_BASE_PORT = 12000;
-	
-	public SuccinctServiceHandler(int localHostId, String[] hostNames, String tachyonMasterAddress) {
-		System.out.println("Initializing Succinct Service...");
-		this.hostNames = hostNames;
-		this.localHostId = localHostId;
-		this.tachyonMasterAddress = tachyonMasterAddress;
-		this.clientOffsets = new long[hostNames.length];
-		this.localServerOffsets = new long[numServers];
-		this.clientTransports = new ArrayList<>();
-		this.clients = new ArrayList<>();
-		this.localTransports = new ArrayList<>();
-		this.localServers = new ArrayList<>();
-        this.clientOffsetMap = new TreeMap<>();
-        this.localServerOffsetMap = new TreeMap<>();
-		System.out.println("Initialization complete!");
-	}
+	// Macros
+	protected static final long two32 = (1L << 32);
 
-	// Binary search in offsets to find the split which has the position
-	private int findSplit(long[] offsets, long position) {
-	    int sp = 0, ep = offsets.length;
-	    while (sp < ep) {
-	        int m = (sp + ep) / 2;
-	        if (offsets[m] == position)
-	            return m;
-	        else if(position < offsets[m])
-	            ep = m - 1;
-	        else
-	            sp = m + 1;
-	    }
+	// Local data structures
+	protected TachyonFS tachyonClient;
 
-	    return sp - 1;
-	}
+	protected ByteBuffer cmap;
+	protected LongBuffer context;
+	protected ByteBuffer slist;
+	protected ByteBuffer dbpos;
+	protected LongBuffer sa;
+	protected LongBuffer sainv;
+	protected LongBuffer neccol;
+	protected LongBuffer necrow;
+	protected LongBuffer rowoffsets;
+	protected LongBuffer coloffsets;
+	protected LongBuffer celloffsets;
+	protected IntBuffer rowsizes;
+	protected IntBuffer colsizes;
+	protected IntBuffer roff;
+	protected IntBuffer coff;
+	protected ByteBuffer[] wavelettree;
 
-	@Override
-	public int notifyClient() throws org.apache.thrift.TException {
-		// Not implemented yet
-		return 0;
-	}
+	// Metadata
+    protected long splitOffset;
+	protected long sa_n;
+	protected long csa_n;
+	protected int alpha_size;
+	protected int sigma_size;
+	protected int bits;
+	protected int csa_bits;
+	protected int l;
+	protected int two_l;
+	protected int context_size;
 
-	@Override
-    public int connectToClients() throws org.apache.thrift.TException {
-    	try {
-	      	for(int i = 0; i < hostNames.length; i++) {
-	        	System.out.println("Connecting to " + hostNames[i] + "...");
-	        	TTransport transport = new TSocket(hostNames[i], CLIENT_BASE_PORT);
-	        	TProtocol protocol = new TBinaryProtocol(transport);
-	        	SuccinctService.Client client = new SuccinctService.Client(protocol);
-	        	transport.open();
+	// Table data structures
+	int[][] decode_table;
+    ArrayList<HashMap<Integer, Integer>> encode_table;
+    short[] C16 = new short[17];
+    char[] offbits = new char[17];
+    char[][] smallrank = new char[65536][16];
+    
+    // Book keeping data structures
+    protected int localPort;
+    protected int option;
+    protected String dataPath;
+    protected boolean isInitialized;
+    protected String tachyonMasterAddress;
 
-	        	clients.add(client);
-	        	clientTransports.add(transport);
-	        	System.out.print("Connected!");
-	      	}
-	      	System.out.println("Setup all connections!");
-	    } catch (Exception e) {
-	      	System.out.println("Error: " + e.toString());
-	      	return -1;
-	    }
-    	return 0;
+    // TODO: FIX LATER!
+    public static class Pair<T1, T2> {
+
+        public T1 first;
+        public T2 second;
+
+        public Pair(T1 first, T2 second) {
+            this.first = first;
+            this.second = second;
+        }
+    }
+
+    // TODO: FIX!!!
+    HashMap<Character, Pair<Long, Integer>> C;
+    HashMap<Long, Long> contexts;
+
+    protected static int intLog2(long n) {
+        int l = (n != 0) && ((n & (n - 1)) == 0) ? 0 : 1;
+        while ((n >>= 1) > 0) ++l;
+        return l;
+    }
+    
+    protected static long modulo(long a, long n) {
+        while (a < 0)
+            a += n;
+        return a % n;
+    }
+    
+    protected static int popcount(long x) {
+        return Long.bitCount(x);
+    }
+
+	protected long GETRANKL2(long n) {
+        return (n >>> 32);
+    }
+    
+    protected long GETRANKL1(long n, int i) {
+        return (((n & 0xffffffff) >>> (32 - i * 10)) & 0x3ff);
+    }
+    
+    protected long GETPOSL2(long n) {
+        return (n >>> 31);
+    }
+
+    protected long GETPOSL1(long n, int i) {
+        return (((n & 0x7fffffff) >>> (31 - i * 10)) & 0x3ff);
+    }
+
+    protected long getVal(LongBuffer B, int i) {
+        assert (i >= 0);
+
+        long val;
+        long s = (long)(i) * csa_bits;
+        long e = s + (csa_bits - 1);
+
+        if ((s / 64) == (e / 64)) {
+            val = B.get((int)(s / 64L)) << (s % 64);
+            val = val >>> (63 - e % 64 + s % 64);
+        } else {
+            long val1 = B.get((int)(s / 64L)) << (s % 64);
+            long val2 = B.get((int)(e / 64L)) >>> (63 - e % 64);
+            val1 = val1 >>> (s % 64 - (e % 64 + 1));
+            val = val1 | val2;
+        }
+
+        return val;
+    }
+
+    protected long getValPos(long bitmap[], int pos, int bits) {
+        assert (pos >= 0);
+
+        long val;
+        long s = (long)pos;
+        long e = s + (bits - 1);
+
+        if ((s / 64) == (e / 64)) {
+            val = bitmap[(int)(s / 64L)] << (s % 64);
+            val = val >>> (63 - e % 64 + s % 64);
+        } else {
+            val = bitmap[(int)(s / 64L)] << (s % 64);
+            val = val >>> (s % 64 - (e % 64 + 1));
+            val = val | (bitmap[(int)(e / 64L)] >>> (63 - e % 64));
+        }
+        assert(val >= 0);
+        return val;
+    }
+
+    protected long getBit(long bitmap[], int i) {
+        return ((bitmap[i / 64] >>> (63L - i)) & 1L);
+    }
+
+	protected long getSelect0(ByteBuffer B, int startPos, int i) {
+        
+        assert(i >= 0);
+
+        B.position(startPos);
+        LongBuffer D = B.asLongBuffer();
+
+        long size = D.get();
+    
+        long val = i + 1;
+        int sp = 0;
+        int ep = (int) (size / two32);
+        int m;
+        long r;
+        int pos = 0;
+        int block_class, block_offset;
+        long sel = 0;
+        int lastblock;
+
+        // TODO, remove these and read directly from buffer
+        long[] rank_l3 = new long[(int)((size / two32) + 1)];
+        long[] pos_l3 = new long[(int)((size / two32) + 1)];
+        long[] rank_l12 = new long[(int)((size / 2048) + 1)];
+        long[] pos_l12 = new long[(int)((size / 2048) + 1)];
+
+        D.get(rank_l3);
+        D.get(pos_l3);
+        D.get(rank_l12);
+        D.get(pos_l12);
+        
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+            r = (m * two32 - rank_l3[m]);
+            if (val > r) {
+                sp = m + 1;
+            } else {
+                ep = m - 1;
+            }
+        }
+
+        ep = Math.max(ep, 0);
+        sel += ep * two32;
+        val -= (ep * two32 - rank_l3[ep]);
+        pos += pos_l3[ep];
+        sp = (int) (ep * two32 / 2048);
+        ep = (int) (Math.min(((ep + 1) * two32 / 2048), Math.ceil((double) size / 2048.0)) - 1);
+
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+            r = m * 2048 - GETRANKL2(rank_l12[m]);
+            if (val > r) {
+                sp = m + 1;
+            } else {
+                ep = m - 1;
+            }
+        }
+
+        ep = Math.max(ep, 0);
+        sel += ep * 2048;
+        val -= (ep * 2048 - GETRANKL2(rank_l12[ep]));
+        pos += GETPOSL2(pos_l12[ep]);
+
+        assert (val <= 2048);
+        r = (512 - GETRANKL1(rank_l12[ep], 1));
+        if (sel + 512 < size && val > r) {
+            pos += GETPOSL1(pos_l12[ep], 1);
+            val -= r;
+            sel += 512;
+            r = (512 - GETRANKL1(rank_l12[ep], 2));
+            if (sel + 512 < size && val > r) {
+                pos += GETPOSL1(pos_l12[ep], 2);
+                val -= r;
+                sel += 512;
+                r = (512 - GETRANKL1(rank_l12[ep], 3));
+                if (sel + 512 < size && val > r) {
+                    pos += GETPOSL1(pos_l12[ep], 3);
+                    val -= r;
+                    sel += 512;
+                }
+            }
+        }
+
+        assert (val <= 512);
+        long bitmap_size = (D.get() / 64) + 1;
+        long[] bitmap = new long[(int)bitmap_size];
+        D.get(bitmap);
+
+        long countt = 0;
+        while (true) {
+            block_class = (int) getValPos(bitmap, pos, 4);
+            short tempint = (short) offbits[block_class];
+            pos += 4;
+            block_offset = (int) ((block_class == 0) ? getBit(bitmap, pos) * 16 : 0);
+            pos += tempint;
+
+            if (val <= (16 - (block_class + block_offset))) {
+                pos -= (4 + tempint);
+                break;
+            }
+
+            val -= (16 - (block_class + block_offset));
+            sel += 16;
+            countt++;
+        }
+
+        assert (countt <= 32);
+
+        block_class = (int) getValPos(bitmap, pos, 4);
+        pos += 4;
+        block_offset = (int) getValPos(bitmap, pos, offbits[block_class]);
+        lastblock = decode_table[block_class][block_offset];
+
+        long count = 0;
+        for (i = 0; i < 16; i++) {
+            if (((lastblock >> (15 - i)) & 1) == 0) {
+                count++;
+            }
+            if (count == val) {
+                return sel + i;
+            }
+        }
+
+        return sel;
+    }
+    
+    protected long getSelect1(ByteBuffer B, int startPos, int i) {
+        assert(i >= 0);
+
+        B.position(startPos);
+        LongBuffer D = B.asLongBuffer();
+
+        long size = D.get();
+    
+        long val = i + 1;
+        int sp = 0;
+        int ep = (int) (size / two32);
+        int m;
+        long r;
+        int pos = 0;
+        int block_class, block_offset;
+        long sel = 0;
+        int lastblock;
+
+        // TODO, remove these and read directly from buffer
+        long[] rank_l3 = new long[(int)((size / two32) + 1)];
+        long[] pos_l3 = new long[(int)((size / two32) + 1)];
+        long[] rank_l12 = new long[(int)((size / 2048) + 1)];
+        long[] pos_l12 = new long[(int)((size / 2048) + 1)];
+
+        D.get(rank_l3);
+        D.get(pos_l3);
+        D.get(rank_l12);
+        D.get(pos_l12);
+        
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+            r = (rank_l3[m]);
+            if (val > r) {
+                sp = m + 1;
+            } else {
+                ep = m - 1;
+            }
+        }
+
+        ep = Math.max(ep, 0);
+        sel += ep * two32;
+        val -= (rank_l3[ep]);
+        pos += pos_l3[ep];
+        sp = (int) (ep * two32 / 2048);
+        ep = (int) (Math.min(((ep + 1) * two32 / 2048), Math.ceil((double) size / 2048.0)) - 1);
+
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+            r = GETRANKL2(rank_l12[m]);
+            if (val > r) {
+                sp = m + 1;
+            } else {
+                ep = m - 1;
+            }
+        }
+
+        ep = Math.max(ep, 0);
+        sel += ep * 2048;
+        val -= (GETRANKL2(rank_l12[ep]));
+        pos += GETPOSL2(pos_l12[ep]);
+
+        assert (val <= 2048);
+        r = (GETRANKL1(rank_l12[ep], 1));
+        if (sel + 512 < size && val > r) {
+            pos += GETPOSL1(pos_l12[ep], 1);
+            val -= r;
+            sel += 512;
+            r = (GETRANKL1(rank_l12[ep], 2));
+            if (sel + 512 < size && val > r) {
+                pos += GETPOSL1(pos_l12[ep], 2);
+                val -= r;
+                sel += 512;
+                r = (GETRANKL1(rank_l12[ep], 3));
+                if (sel + 512 < size && val > r) {
+                    pos += GETPOSL1(pos_l12[ep], 3);
+                    val -= r;
+                    sel += 512;
+                }
+            }
+        }
+
+        assert (val <= 512);
+
+        long bitmap_size = (D.get() / 64) + 1;
+        long[] bitmap = new long[(int)bitmap_size];
+        D.get(bitmap);
+
+        long countt = 0;
+        while (true) {
+            block_class = (int) getValPos(bitmap, pos, 4);
+            short tempint = (short) offbits[block_class];
+            pos += 4;
+            block_offset = (int) ((block_class == 0) ? getBit(bitmap, pos) * 16 : 0);
+            pos += tempint;
+
+            if (val <= ((block_class + block_offset))) {
+                pos -= (4 + tempint);
+                break;
+            }
+
+            val -= ((block_class + block_offset));
+            sel += 16;
+            countt++;
+        }
+
+        assert (countt <= 32);
+
+        block_class = (int) getValPos(bitmap, pos, 4);
+        pos += 4;
+        block_offset = (int) getValPos(bitmap, pos, offbits[block_class]);
+        lastblock = decode_table[block_class][block_offset];
+
+        long count = 0;
+        for (i = 0; i < 16; i++) {
+            if (((lastblock >>> (15 - i)) & 1) == 1) {
+                count++;
+            }
+            if (count == val) {
+                return sel + i;
+            }
+        }
+
+        return sel;
+    }
+
+    protected long getRank1(ByteBuffer B, int startPos, int query) {
+        if(query < 0) return 0;
+    
+        int l3_idx = (int) (query / two32);
+        int l2_idx = query / 2048;
+        int l1_idx = (query % 512);
+        int rem = ((query % 2048) / 512);
+        int block_class, block_offset;
+
+        B.position(startPos);
+        LongBuffer D = B.asLongBuffer();
+        long size = D.get();
+
+        // TODO: Remove these, and read directly from buffer
+        long[] rank_l3 = new long[(int)(size / two32) + 1];
+        long[] rank_l12 = new long[(int)(size / 2048) + 1];
+        long[] pos_l3 = new long[(int)(size / two32) + 1];
+        long[] pos_l12 = new long[(int)(size / 2048) + 1];
+
+        D.get(rank_l3);
+        D.get(pos_l3);
+        D.get(rank_l12);
+        D.get(pos_l12);
+
+        long res = rank_l3[l3_idx] + GETRANKL2(rank_l12[l2_idx]);
+        long pos = pos_l3[l3_idx] + GETPOSL2(pos_l12[l2_idx]);
+
+        switch (rem) {
+            case 1:
+                res += GETRANKL1(rank_l12[l2_idx], 1);
+                pos += GETPOSL1(pos_l12[l2_idx], 1);
+                break;
+
+            case 2:
+                res += GETRANKL1(rank_l12[l2_idx], 1) + GETRANKL1(rank_l12[l2_idx], 2);
+                pos += GETPOSL1(pos_l12[l2_idx], 1) + GETPOSL1(pos_l12[l2_idx], 2);
+                break;
+
+            case 3:
+                res += GETRANKL1(rank_l12[l2_idx], 1) + GETRANKL1(rank_l12[l2_idx], 2) + GETRANKL1(rank_l12[l2_idx], 3);
+                pos += GETPOSL1(pos_l12[l2_idx], 1) + GETPOSL1(pos_l12[l2_idx], 2) + GETPOSL1(pos_l12[l2_idx], 3);
+                break;
+
+            default:
+                break;
+        }
+
+        // TODO: remove this and read directly from buffer
+        long bitmap_size = (D.get() / 64) + 1;
+
+        long[] bitmap = new long[(int)bitmap_size];
+        D.get(bitmap);
+
+        // Popcount
+        while (l1_idx >= 16) {
+            block_class = (int) getValPos(bitmap, (int)pos, 4);
+            pos += 4;
+            block_offset = (int) ((block_class == 0) ? getBit(bitmap, (int)pos) * 16 : 0);
+            pos += offbits[block_class];
+            res += block_class + block_offset;
+            l1_idx -= 16;
+        }
+
+        block_class = (int) getValPos(bitmap, (int)pos, 4);
+        pos += 4;
+        block_offset = (int) getValPos(bitmap, (int)pos, offbits[block_class]);   
+        res += smallrank[decode_table[block_class][block_offset]][l1_idx];
+
+        return res;
+    }
+
+    protected long getRank0(ByteBuffer B, int startPos, int i) {
+        return i - getRank1(B, startPos, i) + 1;
+    }
+
+    protected static int getRank1(LongBuffer B, int startPos, int size, long i) {
+        int sp = 0, ep = size - 1;
+        int m;
+        
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+            if (B.get(startPos + m) == i) return m + 1;
+            else if(i < B.get(startPos + m)) ep = m - 1;
+            else sp = m + 1;
+        }
+
+        return ep + 1;
+    }
+
+    protected long getValueWtree(ByteBuffer wtree, int contextPos, int cellPos, int s, int e) {
+
+        char m = (char)wtree.get();
+        int left = (int)wtree.getLong();
+        int right = (int)wtree.getLong();
+        int dictPos = wtree.position();
+        long p, v;
+
+        if (contextPos > m && contextPos <= e) {
+            if(right == 0) return getSelect1(wtree, dictPos, cellPos);
+            p = getValueWtree((ByteBuffer)wtree.position(right), contextPos, cellPos, m + 1, e);
+            v = getSelect1(wtree, dictPos, (int)p);
+        } else {
+            if(left == 0) return getSelect0(wtree, dictPos, cellPos);	
+            p = getValueWtree((ByteBuffer)wtree.position(left), contextPos, cellPos, s, m);
+            v = getSelect0(wtree, dictPos, (int)p);
+        }
+        
+        return v;
+    }
+    
+    protected long accessPsi(long i) {
+        
+        int c, r, r1, p, c_size, c_pos, startPos;
+        long c_num, r_off;
+
+        // Search columnoffset
+        c = getRank1(coloffsets, 0, sigma_size, i) - 1;
+
+        // Get columnoffset
+        c_num = coloffsets.get(c);
+
+        // Search celloffsets
+        r1 = getRank1(celloffsets, coff.get(c), colsizes.get(c), i - c_num) - 1;
+
+        // Get position within sublist
+        p = (int)(i - c_num - celloffsets.get(coff.get(c) + r1));
+
+        // Search rowoffsets 
+        r = (int)neccol.get(coff.get(c) + r1);
+        
+        // Get rowoffset
+        r_off = rowoffsets.get(r);
+
+        // Get context size
+        c_size = rowsizes.get(r);
+
+        // Get context pos
+        c_pos = getRank1(necrow, roff.get(r), rowsizes.get(r), c) - 1;
+
+        long sl_val = (wavelettree[r] == null) ? p : getValueWtree((ByteBuffer)wavelettree[r].position(0), c_pos, p, 0, c_size - 1);
+        long psi_val = r_off + sl_val;
+
+        return psi_val;
+    }
+
+    protected long lookupSA(long i) {
+
+        long v = 0, r, a;
+        while (getRank1(dbpos, 0, (int)i) - getRank1(dbpos, 0, (int)(i - 1)) == 0) {
+            i = accessPsi(i);
+            v++;
+        }
+        
+        r = modulo(getRank1(dbpos, 0, (int)i) - 1, sa_n);
+        a = getVal(sa, (int)r);
+
+        return modulo((two_l * a) - v, sa_n);
+    }
+
+    protected long lookupSAinv(long i) {
+
+        long acc, pos;
+        long v = i % two_l;
+        acc = getVal(sainv, (int)(i / two_l));
+        pos = getSelect1(dbpos, 0, (int)acc);
+        while (v != 0) {
+            pos = accessPsi(pos);
+            v--;
+        }
+
+        return pos;
+    }
+
+    protected long computeContextVal(char[] p, int sigma_size, int i, int k) {
+        long val = 0;
+        long max = i + k;
+        for (int t = i; t < max; t++) {
+            // System.out.println("val = " + val + " char = " + p[t]);
+            if(C.containsKey(p[t])) {
+                val = val * sigma_size + C.get(p[t]).second;
+            } else {
+                return -1;
+            }
+        }
+
+        return val;
+    }
+
+    /* Extract portion of text between indices (i, j) */
+    protected char[] extract_text(long i, long j) {
+
+        char[] txt = new char[(int)(j - i + 2)];
+        long s;
+
+        s = lookupSAinv(i);
+        int k;
+        for (k = 0;  k < j - i + 1; k++) {
+            txt[k] = (char)slist.get(getRank1(coloffsets, 0, sigma_size, s) - 1);
+            s = accessPsi(s);
+        }
+        
+        txt[k] = '\0';
+        
+        return txt;
+    }
+
+    protected String extractUntilDelim(long i, char delim) {
+        String txt = "";
+        StringBuilder extractedText = new StringBuilder();
+        long s = lookupSAinv(i);
+        char c;
+
+        while((c = (char)slist.get(getRank1(coloffsets, 0, sigma_size, s) - 1)) != delim) {
+            extractedText.append(c);
+            s = accessPsi(s);
+        }
+
+        return extractedText.toString();
+    }
+
+    /* Binary search */
+    protected long binSearchPsi(long val, long s, long e, boolean flag) {
+
+        long sp = s;
+        long ep = e;
+        long m;
+ 
+        while (sp <= ep) {
+            m = (sp + ep) / 2;
+
+            long psi_val;
+            psi_val = accessPsi(m);
+
+            if (psi_val == val) return m;
+            else if(val < psi_val) ep = m - 1;
+            else sp = m + 1;
+        }
+
+        return flag ? ep : sp;
+    }
+
+    /* Get range of SA positions using Slow Backward search */
+    protected Pair<Long, Long> getRangeBckSlow(char[] p) {
+        Pair<Long, Long> range = new Pair<>(0L, -1L);
+        int m = p.length;
+        long sp, ep, c1, c2;
+
+        if (C.containsKey(p[m - 1])) {
+            sp = C.get(p[m - 1]).first;
+            ep = C.get((char)(slist.get(C.get(p[m - 1]).second + 1))).first - 1;
+        } else return range;
+
+        if(sp > ep) return range;
+
+        for (int i = m - 2; i >= 0; i--) {
+            if (C.containsKey(p[i])) {
+                c1 = C.get(p[i]).first;
+                c2 = C.get((char)(slist.get(C.get(p[i]).second + 1))).first - 1;
+            } else return range;
+            sp = binSearchPsi(sp, c1, c2, false);
+            ep = binSearchPsi(ep, c1, c2, true);
+            if (sp > ep) return range;
+        }
+
+        range.first = sp;
+        range.second = ep;
+
+        return range;
+    }
+
+    /* Get range of SA positions using Backward search */
+    protected Pair<Long, Long> getRangeBck(char[] p) {
+
+        int m = p.length;
+        if (m <= 2) {
+            return getRangeBckSlow(p);
+        }
+        Pair<Long, Long> range = new Pair<>(0L, -1L);
+        int sigma_id;
+        long sp, ep, c1, c2;
+        int start_off;
+        long context_val, context_id;
+
+        if(C.containsKey(p[m - 3])) {
+            sigma_id = C.get(p[m - 3]).second;
+            context_val = computeContextVal(p, sigma_size, m - 2, 2);
+            
+            if(context_val == -1) return range;
+            if(!contexts.containsKey(context_val)) return range;
+            
+            context_id = contexts.get(context_val);
+            start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
+            sp = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
+            if(start_off + 1 < colsizes.get(sigma_id)) {
+            	ep = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+        	} else if(sigma_id + 1 < sigma_size) {
+            	ep = coloffsets.get(sigma_id + 1) - 1;
+        	} else {
+                ep = sa_n - 1;
+            }
+        } else return range;
+
+        if(sp > ep) return range;
+
+        for (int i = m - 4; i >= 0; i--) {
+            if (C.containsKey(p[i])) {
+                sigma_id = C.get(p[i]).second;
+                context_val = computeContextVal(p, sigma_size, i + 1, 2);
+                
+                if(context_val == -1) return range;
+                if(!contexts.containsKey(context_val)) return range;
+
+                context_id = contexts.get(context_val);
+                start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
+                c1 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
+
+                if(start_off + 1 < colsizes.get(sigma_id)) {
+	                c2 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+	            } else if(sigma_id + 1 < sigma_size) {
+	                c2 = coloffsets.get(sigma_id + 1) - 1;
+	            } else {
+                    c2 = sa_n - 1;
+                }
+            } else return range;
+            sp = binSearchPsi(sp, c1, c2, false);
+            ep = binSearchPsi(ep, c1, c2, true);
+            if (sp > ep) return range;
+        }
+        range.first = sp;
+        range.second = ep;
+
+        return range;
+    }
+
+    /* Get count of pattern occurrances */
+    protected long getCountBck(char[] p) {
+        Pair<Long, Long> range;
+        range = getRangeBck(p);
+        return range.second - range.first + 1;
+    }
+
+    /* Function for backward search */
+    protected List<Long> bckSearch(char[] p) {
+
+        Pair<Long, Long> range;
+        range = getRangeBck(p);
+        
+        long sp = range.first, ep = range.second;
+        if (ep - sp + 1 <= 0) {
+            return new ArrayList<>();
+        }
+        // long[] positions = new long[ep - sp + 1];
+        List<Long> positions = new ArrayList<>();
+        for (long i = 0; i < ep - sp + 1; i++) {
+            positions.add(splitOffset + lookupSA(sp + i));
+        }
+        
+        return positions;
+    }
+
+    public SuccinctServiceHandler(String tachyonMasterAddress, String dataPath, int option, int localPort) throws IOException {
+
+        this.tachyonMasterAddress = tachyonMasterAddress;
+        this.localPort = localPort;
+        this.option = option;
+        this.dataPath = dataPath;
+        this.splitOffset = 0;
+
+        // Test rank/select
+        // System.out.println("Rank1");
+        // long rank1_max, rank0_max;
+        // for(int i = 0; i < sa_n; i++) {
+        //  System.out.println("i = " + i + " rank1 = " + getRank1(dbpos, 0, i));
+        // }
+
+        // rank1_max = getRank1(dbpos, 0, (int)(sa_n - 1));
+        // rank0_max = getRank0(dbpos, 0, (int)(sa_n - 1));
+
+        // System.out.println("Select1");
+        // for(int i = 0; i < rank1_max; i++) {
+        //  System.out.println("i = " + i + " select1 = " + getSelect1(dbpos, 0, i));
+        // }
+
+        // System.out.println("Select0");
+        // for(int i = 0; i < rank0_max; i++) {
+        //  System.out.println("i = " + i + " select0 = " + getSelect0(dbpos, 0, i));
+        // }
+
+        // Test accessPsi
+        // for(long i = 0; i < sa_n; i++) {
+        //  System.out.println("i = " + i + " psi = " + accessPsi(i));
+        // }
+
+        // Test SA and SAinv lookups
+        // System.out.println("sa");
+        // for(int i = 0; i < sa_n; i++) {
+        //  System.out.println("i = " + i + " sa = " + lookupSA(i));
+        // }
+
+        // System.out.println("sainv");
+        // for(int i = 0; i < sa_n; i++) {
+        //  System.out.println("i = " + i + " sainv = " + lookupSAinv(i));
+        // }
+
+        // Test extract
+        // System.out.println(extract_text(0, sa_n - 1));
+
+        // Test count
+        // System.out.println("count = " + getCountBck("int".toCharArray()));
+
+    }
+
+    // protected void constructDataStructures() {
+    //     String execCommand = "succinct/bin/csa " + this.dataPath;
+    //     try {
+    //         Process constrProc = Runtime.getRuntime().exec(execCommand);
+    //         BufferedReader read = new BufferedReader(new InputStreamReader(constrProc.getInputStream()));
+    //         while(read.ready()) {
+    //             System.out.println(read.readLine());
+    //         }
+    //     } catch (IOException e) {
+    //         System.out.println("Error: SuccinctServiceHandler.java:constructDataStructures(): " + e.toString());
+    //         e.printStackTrace();
+    //     }
+    // }
+
+    protected void copyDataStructures(String srcPath, String dstPath) {
+        File sourceDir = new File(srcPath);
+        String destDir = dstPath;
+        System.out.println("Source directory: [" + sourceDir.getName() + "]");
+        System.out.println("Destination directory: [" + destDir + "]");
+
+        // Create instance of TFsShell
+        TFsShell shell = new TFsShell();
+
+        // Clean destination directory
+        String[] rmCmd = new String[2];
+        rmCmd[0] = "rm";
+        rmCmd[1] = destDir;
+        try {
+            if(shell.run(rmCmd) == -1) {
+                System.out.println("Delete failed!");
+            } else {
+                System.out.println("Delete successful!");
+            }
+        } catch(Exception e) {
+            System.out.println("Error: SuccinctServiceHandler.java:copyDataStructures(): " + e.toString());
+            e.printStackTrace();
+        }
+
+        // Copy files to destiantion
+        String[] copyCmd = new String[3];
+        copyCmd[0] = "copyFromLocal";
+        copyCmd[1] = sourceDir.getAbsolutePath();
+        copyCmd[2] = destDir;
+        try {
+            if(shell.run(copyCmd) == -1) {
+                System.out.println("Copy failed!");
+            } else {
+                System.out.println("Copy successful!");
+            }
+        } catch(Exception e) {
+            System.out.println("Error: SuccinctServiceHandler.java:copyDataStructures(): " + e.toString());
+            e.printStackTrace();
+        }
+    }
+
+    protected void readDataStructures(String path) throws IOException {
+
+        // Setup tables
+        this.decode_table = new int[17][];
+        this.encode_table = new ArrayList<>();
+        int[] q = new int[17];
+        
+        this.C16[0] = 2;
+        this.offbits[0] = 1;
+        this.C16[1] = 16;
+        this.offbits[1] = 4;
+        this.C16[2] = 120;
+        this.offbits[2] = 7;
+        this.C16[3] = 560;
+        this.offbits[3] = 10;
+        this.C16[4] = 1820;
+        this.offbits[4] = 11;
+        this.C16[5] = 4368;
+        this.offbits[5] = 13;
+        this.C16[6] = 8008;
+        this.offbits[6] = 13;
+        this.C16[7] = 11440;
+        this.offbits[7] = 14;
+        this.C16[8] = 12870;
+        this.offbits[8] = 14;
+
+        for (int i = 0; i <= 16; i++) {
+            if (i > 8) {
+                this.C16[i] = this.C16[16 - i];
+                this.offbits[i] = this.offbits[16 - i];
+            }
+            decode_table[i] = new int[this.C16[i]];
+            HashMap<Integer, Integer> encode_row = new HashMap<>();
+            this.encode_table.add(encode_row);
+            q[i] = 0;
+        }
+        q[16] = 1;
+        for (int i = 0; i <= 65535; i++) {
+            int p = popcount(i);
+            decode_table[p % 16][q[p]] = i;
+            encode_table.get(p % 16).put(i, q[p]);
+            q[p]++;
+            for (int j = 0; j < 16; j++) {
+                smallrank[i][j] = (char) popcount(i >> (15 - j));
+            }
+        }
+        
+        System.out.println("Setup tables!");
+        System.out.println("Getting Tachyon FS @ " + Utils.validatePath("/"));
+        
+        // Setup Tachyon buffers
+        TachyonFS tachyonClient = TachyonFS.get(Utils.validatePath("/"));
+        
+        if(tachyonClient == null) {
+            System.out.println("tachyonClient is null");
+        }
+        
+        System.out.println("Recaching data...");
+        System.out.println(path);
+        tachyonClient.getFile(path + "/metadata").recache();
+        System.out.println("Recached metadata!");
+        tachyonClient.getFile(path + "/cmap").recache();
+        System.out.println("Recached cmap!");
+        tachyonClient.getFile(path + "/contxt").recache();
+        System.out.println("Recached contxt");
+        tachyonClient.getFile(path + "/slist").recache();
+        System.out.println("Recached slist");
+        tachyonClient.getFile(path + "/dbpos").recache();
+        System.out.println("Recached dbpos");
+        tachyonClient.getFile(path + "/sa").recache();
+        System.out.println("Recached sa");
+        tachyonClient.getFile(path + "/sainv").recache();
+        System.out.println("Recached sainv");
+        tachyonClient.getFile(path + "/neccol").recache();
+        System.out.println("Recached neccol");
+        tachyonClient.getFile(path + "/necrow").recache();
+        System.out.println("Recached necrow");
+        tachyonClient.getFile(path + "/rowoffsets").recache();
+        System.out.println("Recached rowoffsets");
+        tachyonClient.getFile(path + "/coloffsets").recache();
+        System.out.println("Recached coloffsets");
+        tachyonClient.getFile(path + "/celloffsets").recache();
+        System.out.println("Recached celloffsets");
+        tachyonClient.getFile(path + "/rowsizes").recache();
+        System.out.println("Recached rowsizes");
+        tachyonClient.getFile(path + "/colsizes").recache();
+        System.out.println("Recached colsizes");
+        tachyonClient.getFile(path + "/roff").recache();
+        System.out.println("Recached roff");
+        tachyonClient.getFile(path + "/coff").recache();
+        System.out.println("Recached coff");
+
+        // Read metadata
+        ByteBuffer metadata = tachyonClient.getFile(path + "/metadata").readByteBuffer().DATA;
+        sa_n = metadata.getLong();
+        System.out.println("sa_n = " + sa_n);
+        csa_n = metadata.getLong();
+        System.out.println("csa_n = " + csa_n);
+        alpha_size = metadata.getInt();
+        System.out.println("alpha_size = " + alpha_size);
+        sigma_size = metadata.getInt();
+        System.out.println("sigma_size = " + sigma_size);
+        bits = metadata.getInt();
+        System.out.println("bits = " + bits);
+        csa_bits = metadata.getInt();
+        System.out.println("csa_bits = " + csa_bits);
+        l = metadata.getInt();
+        System.out.println("l = " + l);
+        two_l = metadata.getInt();
+        System.out.println("two_l = " + two_l);
+        context_size = metadata.getInt();
+        System.out.println("context_size = " + context_size);
+        splitOffset = metadata.getLong();
+        System.out.println("splitOffset = " + splitOffset);
+
+        wavelettree = new ByteBuffer[context_size];
+        for(int i = 0; i < context_size; i++) {
+            try {
+                tachyonClient.getFile(path + "/wavelettree_" + i).recache();
+                wavelettree[i] = tachyonClient.getFile(path + "/wavelettree_" + i).readByteBuffer().DATA;
+            } catch(Exception e) { // TODO: Do something better than this!
+                wavelettree[i] = null;
+            }
+        }
+
+        // Read byte buffers
+        cmap = tachyonClient.getFile(path + "/cmap").readByteBuffer().DATA;
+        context = tachyonClient.getFile(path + "/contxt").readByteBuffer().DATA.asLongBuffer();
+        slist = tachyonClient.getFile(path + "/slist").readByteBuffer().DATA;
+        dbpos = tachyonClient.getFile(path + "/dbpos").readByteBuffer().DATA;
+        sa = tachyonClient.getFile(path + "/sa").readByteBuffer().DATA.asLongBuffer();
+        sainv = tachyonClient.getFile(path + "/sainv").readByteBuffer().DATA.asLongBuffer();
+        neccol = tachyonClient.getFile(path + "/neccol").readByteBuffer().DATA.asLongBuffer();
+        necrow = tachyonClient.getFile(path + "/necrow").readByteBuffer().DATA.asLongBuffer();
+        rowoffsets = tachyonClient.getFile(path + "/rowoffsets").readByteBuffer().DATA.asLongBuffer();
+        coloffsets = tachyonClient.getFile(path + "/coloffsets").readByteBuffer().DATA.asLongBuffer();
+        celloffsets = tachyonClient.getFile(path + "/celloffsets").readByteBuffer().DATA.asLongBuffer();
+        rowsizes = tachyonClient.getFile(path + "/rowsizes").readByteBuffer().DATA.asIntBuffer();
+        colsizes = tachyonClient.getFile(path + "/colsizes").readByteBuffer().DATA.asIntBuffer();
+        roff = tachyonClient.getFile(path + "/roff").readByteBuffer().DATA.asIntBuffer();
+        coff = tachyonClient.getFile(path + "/coff").readByteBuffer().DATA.asIntBuffer();
+        
+        System.out.println("Read buffers!");
+
+        // TODO: FIX LATER!!!
+        C = new HashMap<>();
+        contexts = new HashMap<>();
+
+        System.out.println("Reading cmap...");
+        for(int i = 0; i < alpha_size; i++) {
+            char c = (char)cmap.get();
+            long v1 = cmap.getLong();
+            int v2 = cmap.getInt();
+            C.put(c, new Pair<>(v1, v2));
+            System.out.println(c + "=>" + v1 + "," + v2);
+        }
+
+        System.out.println("Reading contextmap");
+        for(int i = 0; i < context_size; i++) {
+            long v1 = context.get();
+            long v2 = context.get();
+            contexts.put(v1, v2);
+            System.out.println(v1 + "=>" + v2);
+        }
+
+        System.out.println("Testing accessPsi: ");
+        for(int i = 0; i < sa_n; i++) {
+            System.out.println(accessPsi(i));
+        }
+
+        System.out.println("Testing lookupSA: ");
+        for(int i = 0; i < sa_n; i++) {
+            System.out.println(lookupSA(i));
+        }        
+
+        System.out.println("Read map!");
     }
 
     @Override
-    public long write(String key, String value, int serverId) throws org.apache.thrift.TException {
-    	return localServers.get(serverId).write(key, value);
+    public long getServerOffset() throws org.apache.thrift.TException {
+        return splitOffset;
     }
 
-    @Override
-    public int startServers(int numServers, int partScheme) throws org.apache.thrift.TException {
-    	this.partitionScheme = partScheme;
-    	ExecutorService serverExecutor = Executors.newCachedThreadPool();
-
-    	String basePath = "succinct/data/split_" + hostNames[localHostId] + "_";
-    	for(int i = 0; i < numServers; i++) {
-    		try {
-    			serverExecutor.submit(new QueryServiceHandler(this.tachyonMasterAddress, basePath + i, this.delim, 0, SERVER_BASE_PORT + i));
-    		} catch(IOException e) {
-    			System.out.println("Error: SuccinctServiceHandler.java:startServers(): " + e.toString());
-    			e.printStackTrace();
-    		}
-    	}
-
-    	try {
-    		Thread.sleep(5000);
-    	} catch(InterruptedException ex) {
-    		ex.printStackTrace();
-		    Thread.currentThread().interrupt();
-		}
-
-    	for(int i = 0; i < numServers; i++) {
-    		System.out.println("Connecting to server " + i + "...");
-        	TTransport transport = new TSocket("localhost", SERVER_BASE_PORT + i);
-        	TProtocol protocol = new TBinaryProtocol(transport);
-        	QueryService.Client client = new QueryService.Client(protocol);
-        	transport.open();
-
-        	localServers.add(client);
-        	localTransports.add(transport);
-        	System.out.print("Connected!");
-    	}
-    	return 0;
+    protected static void printMap(Map mp) {
+        Iterator it = mp.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pairs = (Map.Entry)it.next();
+            System.out.println(pairs.getKey() + " = " + pairs.getValue());
+        }
     }
 
     @Override
     public int initialize(int mode) throws org.apache.thrift.TException {
-    	System.out.println("Client offsets: ");
-    	for(int i = 0; i < clientOffsets.length; i++)
-    		System.out.println(i + "=>" + clientOffsets[i]);
 
-    	System.out.println("Local server offsets: ");
-    	for(int i = 0; i < localServerOffsets.length; i++)
-    		System.out.println(i + "=>" + localServerOffsets[i]);
+        // System.out.println("Constructing data structures...");
+        // constructDataStructures();
+        // System.out.println("Finished constructing data structures...");
 
-    	int ret = 0;
-    	for(int i = 0; i < localServers.size(); i++) {
-    		System.out.println("Initializing local server " + i);
-    		ret += localServers.get(i).initialize(mode);
-    	}
+        System.out.println("Copying data structures...");
+        String srcPath = this.dataPath;
+        String dstPath = "tachyon://" + tachyonMasterAddress + ":" + 19998 + "/" + (new File(this.dataPath)).getName();
+        copyDataStructures(srcPath, dstPath);
+        System.out.println("Finished constructing data structures...");
 
-    	return ret;
-    }
-
-    @Override
-    public int notifyServerSplitOffset(int serverId, long splitOffset) throws org.apache.thrift.TException {
-    	System.out.println("Received server split offset notification: [" + serverId + "," + splitOffset + "]");
-    	if(serverId == 0) {
-			for(int i = 0; i < clients.size(); i++) {
-				System.out.println("Notifying client [" + i + "] " + hostNames[i] + " about offset " + splitOffset);
-				if(i == localHostId) {
-					this.notifyClientSplitOffset(localHostId, splitOffset);
-				} else {
-					clients.get(i).notifyClientSplitOffset(localHostId, splitOffset);
-				}
-				System.out.println("Done!");
-			}
-		}
-
-		System.out.println("Notifying local server [" + serverId + "] about offset " + splitOffset);
-		localServerOffsets[serverId] = splitOffset;
-        this.localServerOffsetMap.put(splitOffset, serverId);
-		localServers.get(serverId).notifySplitOffset(splitOffset);
-		System.out.println("Done!");
-    	return 0;
-    }
-
-    @Override
-    public int notifyClientSplitOffset(int clientId, long splitOffset) throws org.apache.thrift.TException {
-    	System.out.println("Received clients split offset notification: [" + clientId + ", " + splitOffset + "]");
-        clientOffsetMap.put(splitOffset, clientId);
-		clientOffsets[clientId] = splitOffset;
-    	return 0;
-    }
-
-    @Override
-    public int submitFile(String filePath, int partScheme, byte delim1, byte delim2) throws org.apache.thrift.TException {
-
-    	this.partitionScheme = partScheme;
-		int numSplits = hostNames.length;			// TODO: change
-
-		// Each client is responsible for (num_splits / hostcount) number of servers
-		int numServers = (numSplits / hostNames.length);
-
-		// Upgrade delim2 to String
-		String delim1String = "" + (char)delim1;
-		String delim2String = "" + (char)delim2;
-
-		// Start servers on all clients
-		for(int i = 0; i < hostNames.length; i++) {
-			System.out.println("Asking client " + hostNames[i] + " to start " + numServers + " servers...");
-			clients.get(i).send_startServers(numServers, this.partitionScheme);
-		}
-
-        System.out.println("Waiting for all the clients to finish...");
-
-        // Wait for servers to start on all clients
-        for(int i = 0; i < hostNames.length; i++) {
-            clients.get(i).recv_startServers();
-            System.out.println("Client " + hostNames[i] + " finished!");
+        System.out.println("Reading data structures...");
+        try {
+            File sourceFile = new File(this.dataPath);
+            String tachyonPath = "/" + sourceFile.getName();
+            readDataStructures(tachyonPath);
+            System.out.println("Finished reading data structures...");
+        } catch (IOException e) {
+            System.out.println("Error: SuccinctServiceHandler.java:initialize(mode): " + e.toString());
+            e.printStackTrace();
+            return -1;
         }
-
-		if(partitionScheme == PARTITION_HASH) {
-			// Distribute key value pairs based on hash-partitioning
-			System.out.println("Hash partitioning data...");
-			
-			try {
-				Scanner inputFile = new Scanner(new File(filePath)).useDelimiter(delim2String);
-				String line;
-				
-				while (inputFile.hasNext()) {
-					line = inputFile.next();
-					String key, value;
-
-					// Extract key and value
-					int kvSplitIndex = line.indexOf((char)delim1);
-					key = line.substring(0, kvSplitIndex);
-					value = line.substring(kvSplitIndex + 1);
-					System.out.println("<" + key + ", " + value + ">");
-
-		 			int selectedHost = key.hashCode() % hostNames.length;
-		 			int selectedServer = key.hashCode() % numServers;
-		 			System.out.println("Selected host = " + hostNames[selectedHost]);
-					clients.get(selectedHost).write(key, value, selectedServer);
-				}
-				inputFile.close();
-			} catch (IOException e) {
-				System.out.println("Error: " + e.toString());
-			}
-		} else if(partitionScheme == PARTITION_RETAIN) {
-			// In this mode, we ignore delim1, and only use delim2 to get line splits
-			System.out.println("Retention partitioning data...");
-			
-			try {
-				File f = new File(filePath);
-				long splitSize = (long)(f.length() / numSplits) + 1;
-				Scanner inputFile = new Scanner(f).useDelimiter(delim2String);
-				String line;
-				long lineNo = 0;
-				int selectedHost = 0, selectedServer = 0;
-				long offset = 0, written = 0;
-
-				System.out.println("Writing to partition " + selectedServer + " on [" + selectedHost + "] " + hostNames[selectedHost]);
-				System.out.println("Offset is at " + offset);
-
-				System.out.println("Notifying client [" + selectedHost + "] " + hostNames[selectedHost] + " about offset " + offset);
-				clients.get(selectedHost).notifyServerSplitOffset(selectedServer, offset);
-
-				while (inputFile.hasNext()) {
-					line = inputFile.next();
-					String key, value;
-					
-					// Extract key and value
-					key = String.valueOf(lineNo);
-					value = line;
-					System.out.println("<" + key + ", " + value + ">");
-					
-					if((written = clients.get(selectedHost).write(key, value, selectedServer)) >= splitSize) {
-						System.out.println("Partition " + selectedServer + " on " + hostNames[selectedHost] + " is full.");
-						selectedServer++;
-						if(selectedServer == numServers) {
-							selectedHost++;
-							selectedServer = 0;
-						}
-
-						System.out.println("Writing to partition " + selectedServer + " on [" + selectedHost + "]" + hostNames[selectedHost]);
-						offset += written;
-						System.out.println("Updated offset to " + offset);
-						System.out.println("Notifying client [" + selectedHost + "] " + hostNames[selectedHost] + " about offset " + offset);
-						clients.get(selectedHost).notifyServerSplitOffset(selectedServer, offset);
-					}
-					lineNo++;
-				}
-				inputFile.close();
-			} catch (IOException e) {
-				System.out.println("Error: " + e.toString());
-			}
-		} else {
-			System.out.println("Partition scheme not supported: " + partScheme);
-			return 1;
-		}
-
-		// Start initialization at all clients
-		for(int i = 0; i < hostNames.length; i++) {
-			System.out.println("Starting initialization at client " + i);
-			clients.get(i).send_initialize(0);
-		}
-
-        System.out.println("Waiting for clients to finish...");
-        
-        // Wait for initialization to finish
-        for(int i = 0; i < hostNames.length; i++) {
-            clients.get(i).recv_initialize();
-            System.out.println("Client " + hostNames[i] + " finished!");
-        }
-		return 0;
+        return 0;
     }
 
     @Override
-    public List<Long> locate(String query) throws org.apache.thrift.TException {
-    	List<Long> locations = new ArrayList<>();
-    	for(int i = 0; i < clients.size(); i++) {
-    		clients.get(i).send_locateLocal(query);
-    	}
-        for(int i = 0; i < clients.size(); i++) {
-            locations.addAll(clients.get(i).recv_locateLocal());
-        }
-    	return locations;
-    }
+ 	public List<Long> locate(String query) throws org.apache.thrift.TException {
+ 		System.out.println("Received locate query [" + query + "]");
+ 		return bckSearch(query.toCharArray());
+ 	}
 
-    @Override
-    public List<Long> locateLocal(String query) throws org.apache.thrift.TException {
-    	List<Long> locations = new ArrayList<>();
-    	for(int i = 0; i < localServers.size(); i++) {
-            localServers.get(i).send_locate(query);
-    	}
-
-        for(int i = 0; i < localServers.size(); i++) {
-            locations.addAll(localServers.get(i).recv_locate());
-        }
-    	return locations;
-    }
-
-    @Override
+ 	@Override
     public long count(String query) throws org.apache.thrift.TException {
-    	int ret = 0;
-        for(int i = 0; i < clients.size(); i++) {
-            clients.get(i).send_countLocal(query);
-        }
-    	for(int i = 0; i < clients.size(); i++) {
-    		ret += clients.get(i).recv_countLocal();
-    	}
-    	return ret;
-    }
-
-    @Override
-    public long countLocal(String query) throws org.apache.thrift.TException {
-    	int ret = 0;
-    	for(int i = 0; i < localServers.size(); i++) {
-    		localServers.get(i).send_count(query);
-    	}
-        for(int i = 0; i < localServers.size(); i++) {
-            ret += localServers.get(i).recv_count();
-        }
-    	return ret;
+    	System.out.println("Received count query [" + query + "]");
+    	return getCountBck(query.toCharArray());
     }
 
     @Override
     public String extract(long loc, long bytes) throws org.apache.thrift.TException {
-    	System.out.println("Received extract query for <" + loc + "," + bytes + ">");
-    	// int clientId = findSplit(clientOffsets, loc);
-        Integer lookup = this.clientOffsetMap.get(loc);
-        int clientId = (lookup == null) ? (Integer)(this.clientOffsetMap.lowerEntry(loc).getValue()) : lookup;
-    	System.out.println("Offset " + loc + " found at cliendId = " + clientId + " = " + hostNames[clientId]);
-    	return clients.get(clientId).extractLocal(loc, bytes);
+    	System.out.println("Received extract query [" + loc + ", " + bytes + "]");
+    	return new String(extract_text(loc - splitOffset, (loc - splitOffset) + (bytes - 1)));
     }
 
     @Override
-    public String extractLocal(long loc, long bytes) throws org.apache.thrift.TException {
-    	System.out.println("Received extractLocal query for <" + loc + "," + bytes + ">");
-    	// int serverId = findSplit(localServerOffsets, loc);
-        Integer lookup = this.localServerOffsetMap.get(loc);
-        int serverId = (lookup == null) ? (Integer)(this.localServerOffsetMap.lowerEntry(loc).getValue()) : lookup;
-    	System.out.println("Offset " + loc + " found at serverId = " + serverId);
-    	return localServers.get(serverId).extract(loc, bytes);
+    public Range getRange(String query) throws org.apache.thrift.TException {
+        Pair<Long, Long> range = getRangeBck(query.toCharArray());
+        return new Range(range.first, range.second);
     }
 
     @Override
-    public long getKeyToValuePointer(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received getKeyToValuePointer query for [" + key + "]");
-    	return clients.get(key.hashCode() % clients.size()).getKeyToValuePointerLocal(key);
+    public long getLocation(long index) throws org.apache.thrift.TException {
+        return lookupSA(index);
     }
 
     @Override
-    public long getKeyToValuePointerLocal(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received getKeyToValuePointerLocal query for [" + key + "]");
-    	return localServers.get(key.hashCode() % localServers.size()).getKeyToValuePointer(key);
-    }
+    public void run() {
+        try {
+            SuccinctService.Processor<SuccinctServiceHandler> processor = new SuccinctService.Processor<SuccinctServiceHandler>(this);
+            TServerTransport serverTransport = new TServerSocket(localPort);
+            TServer server = new TThreadPoolServer(new
+                        TThreadPoolServer.Args(serverTransport).processor(processor));
 
-    @Override
-    public String getValue(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received getValue query for [" + key + "]");
-    	return clients.get(key.hashCode() % clients.size()).getValueLocal(key);	
-    }
-
-    @Override
-    public String getValueLocal(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received getValueLocal query for [" + key + "]");
-    	return localServers.get(key.hashCode() % localServers.size()).getValue(key);
-    }
-
-    @Override
-    public Set<String> getKeys(String substring) throws org.apache.thrift.TException {
-    	System.out.println("Received getKeys query for [" + substring + "]");
-    	Set<String> keys = new TreeSet<>();
-        for(int i = 0; i < clients.size(); i++) {
-            clients.get(i).send_getKeysLocal(substring);
+            server.serve();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-    	for(int i = 0; i < clients.size(); i++) {
-    		keys.addAll(clients.get(i).recv_getKeysLocal());
-    	}
-    	return keys;
     }
-
-    @Override
-    public Set<String> getKeysLocal(String substring) throws org.apache.thrift.TException {
-    	System.out.println("Received getKeysLocal query for [" + substring + "]");
-    	Set<String> keys = new TreeSet<>();
-    	for(int i = 0; i < localServers.size(); i++) {
-    		localServers.get(i).send_getKeys(substring);
-    	}
-        for(int i = 0; i < localServers.size(); i++) {
-            keys.addAll(localServers.get(i).recv_getKeys());
-        }
-    	return keys;
-    }
-
-    @Override
-    public Map<String,String> getRecords(String substring) throws org.apache.thrift.TException {
-    	System.out.println("Received getRecords query for [" + substring + "]");
-    	Map<String, String> records = new TreeMap<>();
-    	for(int i = 0; i < clients.size(); i++) {
-    		clients.get(i).send_getRecordsLocal(substring);
-    	}
-        for(int i = 0; i < clients.size(); i++) {
-            records.putAll(clients.get(i).recv_getRecordsLocal());
-        }
-    	return records;
-    }
-
-    @Override
-    public Map<String,String> getRecordsLocal(String substring) throws org.apache.thrift.TException {
-    	System.out.println("Received getRecordsLocal query for [" + substring + "]");
-    	Map<String, String> records = new TreeMap<>();
-    	for(int i = 0; i < localServers.size(); i++) {
-    		localServers.get(i).send_getRecords(substring);
-    	}
-        for(int i = 0; i < localServers.size(); i++) {
-            records.putAll(localServers.get(i).recv_getRecords());
-        }
-    	return records;
-    }
-
-    @Override
-    public int deleteRecord(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received deleteRecord request for [" + key + "]");
-    	return clients.get(key.hashCode() % clients.size()).deleteRecordLocal(key);
-    }
-
-    @Override
-    public int deleteRecordLocal(String key) throws org.apache.thrift.TException {
-    	System.out.println("Received deleteRecordLocal request for [" + key + "]");
-    	return localServers.get(key.hashCode() % localServers.size()).deleteRecord(key);
-    }
-
-    @Override
-    public Map<Integer,Map<Integer,Range>> getRanges(String query) throws org.apache.thrift.TException {
-        Map<Integer, Map<Integer, Range>> rangeMap = new HashMap<>();
-        for(int i = 0; i < clients.size(); i++) {
-            clients.get(i).send_getRangesLocal(query);
-        }
-        for(int i = 0; i < clients.size(); i++) {
-            rangeMap.put(i, clients.get(i).recv_getRangesLocal());
-        }
-        return rangeMap;
-    }
-
-    @Override
-    public Map<Integer,Range> getRangesLocal(String query) throws org.apache.thrift.TException {
-        Map<Integer, Range> rangeMap = new HashMap<>();
-        for(int i = 0; i < localServers.size(); i++) {
-            localServers.get(i).send_getRange(query);
-        }
-        for(int i = 0; i < localServers.size(); i++) {
-            rangeMap.put(i, localServers.get(i).recv_getRange());
-        }
-        return rangeMap;
-    }
-
-    @Override
-    public long getLocation(int clientId, int serverId, long index) throws org.apache.thrift.TException {
-        return clients.get(clientId).getLocationLocal(serverId, index);
-    }
-
-    @Override
-    public long getLocationLocal(int serverId, long index) throws org.apache.thrift.TException {
-        return localServers.get(serverId).getLocation(index);
-    }
-
-
+    
 }

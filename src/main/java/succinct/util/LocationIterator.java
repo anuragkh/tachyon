@@ -3,12 +3,12 @@ package succinct.util;
 import java.util.Iterator;
 import java.util.Map;
 
-import succinct.thrift.SuccinctService;
+import succinct.thrift.SuccinctMasterService;
 import succinct.thrift.Range;
 
 public class LocationIterator implements Iterator<Long> {
     
-    private SuccinctService.Client rClient;
+    private SuccinctMasterService.Client rClient;
 
     private Map<Integer, Map<Integer, Range>> rangeMap;
     private int currentClientId;
@@ -17,7 +17,7 @@ public class LocationIterator implements Iterator<Long> {
     private long currentIndexLimit;
     private boolean isFinished;
     
-    public LocationIterator(SuccinctService.Client rClient, String query) {
+    public LocationIterator(SuccinctMasterService.Client rClient, String query) {
         this.rClient = rClient;
         try {
             this.rangeMap = rClient.getRanges(query);
@@ -27,9 +27,7 @@ public class LocationIterator implements Iterator<Long> {
         }
         this.currentClientId = 0;
         this.currentServerId = 0;
-        Range currentRange = this.rangeMap.get(currentClientId).get(currentServerId);
-        this.currentIndex = currentRange.getStartIndex();
-        this.currentIndexLimit = currentRange.getEndIndex();
+
         int numNonEmptyRanges = 0;
         for(int i = 0; i < rangeMap.size(); i++) {
             for(int j = 0; j < rangeMap.get(i).size(); j++) {
@@ -38,6 +36,12 @@ public class LocationIterator implements Iterator<Long> {
             }
         }
         this.isFinished = (numNonEmptyRanges == 0);
+
+        if(!isFinished) {
+            Range currentRange = this.rangeMap.get(currentClientId).get(currentServerId);
+            this.currentIndex = currentRange.getStartIndex();
+            this.currentIndexLimit = currentRange.getEndIndex();
+        }
     }
 
     @Override

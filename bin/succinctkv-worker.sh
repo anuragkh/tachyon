@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-#!/usr/bin/env bash
-
 bin=`cd "$( dirname "$0" )"; pwd`
 
 ensure_dirs() {
@@ -23,15 +21,15 @@ get_env
 # ensure log/data dirs
 ensure_dirs
 
+MASTER_ADDRESS=$TACHYON_MASTER_ADDRESS
 if [ -z $TACHYON_MASTER_ADDRESS ] ; then
 	MASTER_ADDRESS=localhost
 fi
-
-echo "Starting SuccinctMaster @ `hostname`"
 now=$(date +"%Y-%m-%d_%H.%M.%S")
 HOSTLIST=$TACHYON_CONF_DIR/slaves
 HOSTS=`cat "$HOSTLIST"|sed  "s/#.*$//;/^$/d"`
 for slave in $HOSTS; do
 	ARGS="$ARGS $slave"
 done
-(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="MASTER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.SuccinctMaster $ARGS > $TACHYON_LOGS_DIR/succinct-master.log@$now 2>&1) &
+echo "Starting SuccinctKVWorker @ `hostname`"
+(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="WORKER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinctkv.SuccinctKVWorker $MASTER_ADDRESS > $TACHYON_LOGS_DIR/succinctkv-worker.log@$now 2>&1) &
