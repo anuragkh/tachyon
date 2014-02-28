@@ -74,6 +74,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
 	protected int l;
 	protected int two_l;
 	protected int context_size;
+    protected int contextLen;
 
 	// Table data structures
 	int[][] decode_table;
@@ -704,7 +705,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
     protected Pair<Long, Long> getRangeBck(char[] p) {
 
         int m = p.length;
-        if (m <= 2) {
+        if (m <= contextLen) {
             return getRangeBckSlow(p);
         }
         Pair<Long, Long> range = new Pair<>(0L, -1L);
@@ -713,50 +714,66 @@ public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
         int start_off;
         long context_val, context_id;
 
-        if(C.containsKey(p[m - 3])) {
-            sigma_id = C.get(p[m - 3]).second;
-            context_val = computeContextVal(p, sigma_size, m - 2, 2);
-            
-            if(context_val == -1) return range;
-            if(!contexts.containsKey(context_val)) return range;
-            
+        if (C.containsKey((byte)p[m - contextLen - 1])) {
+            sigma_id = C.get((byte)p[m - contextLen - 1]).second;
+            context_val = computeContextVal(p, sigma_size, m - contextLen, contextLen);
+
+            if (context_val == -1) {
+                return range;
+            }
+            if (!contexts.containsKey(context_val)) {
+                return range;
+            }
+
             context_id = contexts.get(context_val);
             start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
             sp = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
-            if(start_off + 1 < colsizes.get(sigma_id)) {
-            	ep = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
-        	} else if(sigma_id + 1 < sigma_size) {
-            	ep = coloffsets.get(sigma_id + 1) - 1;
-        	} else {
+            if (start_off + 1 < colsizes.get(sigma_id)) {
+                ep = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+            } else if (sigma_id + 1 < sigma_size) {
+                ep = coloffsets.get(sigma_id + 1) - 1;
+            } else {
                 ep = sa_n - 1;
             }
-        } else return range;
+        } else {
+            return range;
+        }
 
-        if(sp > ep) return range;
+        if (sp > ep) {
+            return range;
+        }
 
-        for (int i = m - 4; i >= 0; i--) {
-            if (C.containsKey(p[i])) {
-                sigma_id = C.get(p[i]).second;
-                context_val = computeContextVal(p, sigma_size, i + 1, 2);
-                
-                if(context_val == -1) return range;
-                if(!contexts.containsKey(context_val)) return range;
+        for (int i = m - contextLen - 2; i >= 0; i--) {
+            if (C.containsKey((byte)p[i])) {
+                sigma_id = C.get((byte)p[i]).second;
+                context_val = computeContextVal(p, sigma_size, i + 1, contextLen);
+
+                if (context_val == -1) {
+                    return range;
+                }
+                if (!contexts.containsKey(context_val)) {
+                    return range;
+                }
 
                 context_id = contexts.get(context_val);
                 start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
                 c1 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
 
-                if(start_off + 1 < colsizes.get(sigma_id)) {
-	                c2 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
-	            } else if(sigma_id + 1 < sigma_size) {
-	                c2 = coloffsets.get(sigma_id + 1) - 1;
-	            } else {
+                if (start_off + 1 < colsizes.get(sigma_id)) {
+                    c2 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+                } else if (sigma_id + 1 < sigma_size) {
+                    c2 = coloffsets.get(sigma_id + 1) - 1;
+                } else {
                     c2 = sa_n - 1;
                 }
-            } else return range;
+            } else {
+                return range;
+            }
             sp = binSearchPsi(sp, c1, c2, false);
             ep = binSearchPsi(ep, c1, c2, true);
-            if (sp > ep) return range;
+            if (sp > ep) {
+                return range;
+            }
         }
         range.first = sp;
         range.second = ep;
@@ -797,6 +814,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
         this.option = option;
         this.dataPath = dataPath;
         this.splitOffset = 0;
+        this.contextLen = 3;
 
         // Test rank/select
         // System.out.println("Rank1");
@@ -1090,10 +1108,6 @@ public class SuccinctServiceHandler implements SuccinctService.Iface, Runnable {
 
     @Override
     public int initialize(int mode) throws org.apache.thrift.TException {
-
-        // System.out.println("Constructing data structures...");
-        // constructDataStructures();
-        // System.out.println("Finished constructing data structures...");
 
         System.out.println("Copying data structures...");
         String srcPath = this.dataPath;

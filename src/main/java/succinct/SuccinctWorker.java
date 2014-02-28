@@ -17,9 +17,10 @@ public class SuccinctWorker {
 
   public static void main(String[] args) throws IOException {
     String tachyonMasterAddress = args[0];
+    String dataPath = args[1];
     System.out.println("Creating Succinct Worker Service...");
     SuccinctWorkerServiceHandler succinctService = 
-        new SuccinctWorkerServiceHandler(tachyonMasterAddress);
+        new SuccinctWorkerServiceHandler(tachyonMasterAddress, dataPath);
     System.out.println("Created!");
     try {
       SuccinctWorkerService.Processor<SuccinctWorkerServiceHandler> processor = 

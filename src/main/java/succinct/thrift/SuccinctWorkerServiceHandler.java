@@ -22,18 +22,20 @@ import org.apache.thrift.transport.TTransportException;
 
 public class SuccinctWorkerServiceHandler implements SuccinctWorkerService.Iface {
 
-	private int numServers = 1;
+	private int numServers = 8;
     private TreeMap<Long, Integer> localServerOffsetMap;
   	private ArrayList<TTransport> localTransports;
   	private ArrayList<SuccinctService.Client> localServers;
   	private String tachyonMasterAddress;
+    private String dataPath;
 	
-	public SuccinctWorkerServiceHandler(String tachyonMasterAddress) {
+	public SuccinctWorkerServiceHandler(String tachyonMasterAddress, String dataPath) {
 		System.out.println("Initializing Succinct Worker Service...");
 		this.tachyonMasterAddress = tachyonMasterAddress;
 		this.localTransports = new ArrayList<>();
 		this.localServers = new ArrayList<>();
         this.localServerOffsetMap = new TreeMap<>();
+        this.dataPath = dataPath;
 		System.out.println("Initialization complete!");
 	}	
 
@@ -41,7 +43,7 @@ public class SuccinctWorkerServiceHandler implements SuccinctWorkerService.Iface
     public int startSuccinctServers(int numServers) throws org.apache.thrift.TException {
     	ExecutorService serverExecutor = Executors.newCachedThreadPool();
 
-        File[] dataFiles = new File("succinct/data").listFiles();
+        File[] dataFiles = new File(dataPath).listFiles();
     	for(int i = 0; i < numServers; i++) {
     		try {
     			serverExecutor.submit(new SuccinctServiceHandler(this.tachyonMasterAddress, dataFiles[i].getAbsolutePath(), 0, Ports.SERVER_BASE_PORT + i));
