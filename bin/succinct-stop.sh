@@ -27,6 +27,8 @@ fi
 bin=`cd "$( dirname "$0" )"; pwd`
 
 $bin/tachyon killAll succinct.SuccinctMaster
-$bin/tachyon killAll succinct.SuccinctClient
+$bin/tachyon killAll succinct.QueryHandler
+$bin/tachyon killAll succinct.QueryServer
 
-$bin/tachyon-slaves.sh $bin/tachyon killAll succinct.SuccinctClient
+$bin/tachyon-slaves.sh $bin/tachyon killAll succinct.QueryHandler
+$bin/tachyon-slaves.sh $bin/tachyon killAll succinct.QueryServer

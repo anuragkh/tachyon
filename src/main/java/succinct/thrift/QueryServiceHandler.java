@@ -37,7 +37,7 @@ import org.apache.thrift.server.TServer.Args;
 import org.apache.thrift.server.TSimpleServer;
 import org.apache.thrift.server.TThreadPoolServer;
 
-public class QueryServiceHandler implements QueryService.Iface, Runnable {
+public class QueryServiceHandler implements QueryService.Iface {
 
 	// Macros
 	private static final long two32 = (1L << 32);
@@ -48,18 +48,18 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
 	ByteBuffer cmap;
 	LongBuffer context;
 	ByteBuffer slist;
-	ByteBuffer dbpos;			// TESTED
-	LongBuffer sa;				// TESTED
-	LongBuffer sainv;			// TESTED
-	LongBuffer neccol;			// TESTED
-	LongBuffer necrow;			// TESTED
-	LongBuffer rowoffsets;		// TESTED
-	LongBuffer coloffsets;		// TESTED
-	LongBuffer celloffsets;		// TESTED
-	IntBuffer rowsizes;			// TESTED
-	IntBuffer colsizes;			// TESTED
-	IntBuffer roff;				// TESTED
-	IntBuffer coff;				// TESTED
+	ByteBuffer dbpos;			
+	LongBuffer sa;
+	LongBuffer sainv;
+	LongBuffer neccol;
+	LongBuffer necrow;
+	LongBuffer rowoffsets;
+	LongBuffer coloffsets;
+	LongBuffer celloffsets;
+	IntBuffer rowsizes;
+	IntBuffer colsizes;
+	IntBuffer roff;
+	IntBuffer coff;
 	ByteBuffer[] wavelettree;
 
 	// Metadata
@@ -81,7 +81,6 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
     char[][] smallrank = new char[65536][16];
 
     // Book keeping data structures
-    int localPort;
     int option;
     long splitOffset;
     FileOutputStream dataFile;
@@ -796,10 +795,9 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
         return positions;
     }
 
-    public QueryServiceHandler(String tachyonMasterAddress, String dataPath, byte delim, int option, int localPort) throws IOException {
+    public QueryServiceHandler(String tachyonMasterAddress, String dataPath, byte delim, int option) throws IOException {
 
         this.tachyonMasterAddress = tachyonMasterAddress;
-        this.localPort = localPort;
         this.option = option;
         this.delim = delim;
         this.dataPath = dataPath;
@@ -816,62 +814,6 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
             this.dataFile = null;
         }
 
-        // Test rank/select
-        // System.out.println("Rank1");
-        // long rank1_max, rank0_max;
-        // for(int i = 0; i < sa_n; i++) {
-        //  System.out.println("i = " + i + " rank1 = " + getRank1(dbpos, 0, i));
-        // }
-
-        // rank1_max = getRank1(dbpos, 0, (int)(sa_n - 1));
-        // rank0_max = getRank0(dbpos, 0, (int)(sa_n - 1));
-
-        // System.out.println("Select1");
-        // for(int i = 0; i < rank1_max; i++) {
-        //  System.out.println("i = " + i + " select1 = " + getSelect1(dbpos, 0, i));
-        // }
-
-        // System.out.println("Select0");
-        // for(int i = 0; i < rank0_max; i++) {
-        //  System.out.println("i = " + i + " select0 = " + getSelect0(dbpos, 0, i));
-        // }
-
-        // Test accessPsi
-        // for(long i = 0; i < sa_n; i++) {
-        //  System.out.println("i = " + i + " psi = " + accessPsi(i));
-        // }
-
-        // Test SA and SAinv lookups
-        // System.out.println("sa");
-        // for(int i = 0; i < sa_n; i++) {
-        //  System.out.println("i = " + i + " sa = " + lookupSA(i));
-        // }
-
-        // System.out.println("sainv");
-        // for(int i = 0; i < sa_n; i++) {
-        //  System.out.println("i = " + i + " sainv = " + lookupSAinv(i));
-        // }
-
-        // Test extract
-        // System.out.println(extract_text(0, sa_n - 1));
-
-        // Test count
-        // System.out.println("count = " + getCountBck("int".toCharArray()));
-
-    }
-
-    private void constructDataStructures() {
-        String execCommand = "succinct/bin/csa " + this.dataPath;
-        try {
-            Process constrProc = Runtime.getRuntime().exec(execCommand);
-            BufferedReader read = new BufferedReader(new InputStreamReader(constrProc.getInputStream()));
-            while(read.ready()) {
-                System.out.println(read.readLine());
-            }
-        } catch (IOException e) {
-            System.out.println("Error: QueryServiceHandler.java:constructDataStructures(): " + e.toString());
-            e.printStackTrace();
-        }
     }
 
     private void copyDataStructures() {
@@ -971,7 +913,7 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
 
         // Setup Tachyon buffers
         tachyonClient = TachyonFS.get("tachyon://" + tachyonMasterAddress + ":19998/");
-
+        
         tachyonClient.getFile(path + "/metadata").recache();
         tachyonClient.getFile(path + "/cmap").recache();
         tachyonClient.getFile(path + "/contxt").recache();
@@ -1055,28 +997,11 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
     }
 
     @Override
-    public long write(String key, String value) throws org.apache.thrift.TException {
-        try {
-            keyToValueOffsetMap.put(key, dataFile.getChannel().position());
-            valueOffsetToKeyMap.put(dataFile.getChannel().position(), key);
-            dataFile.write(value.getBytes(), 0, value.length());
-            dataFile.write(delim);
-            return dataFile.getChannel().position();
-        } catch (IOException e) {
-            System.out.println("Error: QueryServiceHandler.java:write(key, value): " + e.toString());
-        }
-        return -1;
-        
+    public long getSplitOffset() throws org.apache.thrift.TException {
+        return this.splitOffset;
     }
 
-    @Override
-    public int notifySplitOffset(long splitOffset) throws org.apache.thrift.TException {
-        System.out.println("Received Split Offset Notification: " + splitOffset);
-        this.splitOffset = splitOffset;
-        return 0;
-    }
-
-    public static void printMap(Map mp) {
+    private static void printMap(Map mp) {
         Iterator it = mp.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry pairs = (Map.Entry)it.next();
@@ -1096,19 +1021,10 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
                 return -1;
             }
         }
-        // System.out.println("Printing keyToValueOffsetMap: ");
-        // printMap(keyToValueOffsetMap);
-
-        // System.out.println("Printing valueOffsetToKeyMap: ");
-        // printMap(valueOffsetToKeyMap);
-
-        System.out.println("Constructing data structures...");
-        constructDataStructures();
-        System.out.println("Finished constructing data structures...");
 
         System.out.println("Copying data structures...");
         copyDataStructures();
-        System.out.println("Finished constructing data structures...");
+        System.out.println("Finished copying data structures...");
 
         System.out.println("Reading data structures...");
         try {
@@ -1126,26 +1042,21 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
 
     @Override
  	public List<Long> locate(String query) throws org.apache.thrift.TException {
- 		System.out.println("Received locate query [" + query + "]");
  		return bckSearch(query.toCharArray());
  	}
 
  	@Override
     public long count(String query) throws org.apache.thrift.TException {
-    	System.out.println("Received count query [" + query + "]");
     	return getCountBck(query.toCharArray());
     }
 
     @Override
     public String extract(long loc, long bytes) throws org.apache.thrift.TException {
-    	System.out.println("Received extract query [" + loc + ", " + bytes + "]");
     	return new String(extract_text(loc - splitOffset, (loc - splitOffset) + (bytes - 1)));
     }
 
     @Override
     public long getKeyToValuePointer(String key) throws org.apache.thrift.TException {
-        System.out.println("Received getKeyToValuePointer request key = " + key);
-        System.out.println("Value = " + keyToValueOffsetMap.get(key));
         Long ret = keyToValueOffsetMap.get(key);
         return (ret == null || ret < 0) ? -1 : ret;
     }
@@ -1163,7 +1074,7 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
     public Set<String> getKeys(String substring) throws org.apache.thrift.TException {
         Pair<Long, Long> range = getRangeBck(substring.toCharArray());
         long sp = range.first, ep = range.second;
-        
+
         Set<String> keys = new TreeSet<>();
         for (long i = 0; i < ep - sp + 1; i++) {
             Map.Entry votkMapEntry = valueOffsetToKeyMap.floorEntry(lookupSA(sp + i));
@@ -1205,19 +1116,4 @@ public class QueryServiceHandler implements QueryService.Iface, Runnable {
     public long getLocation(long index) throws org.apache.thrift.TException {
         return lookupSA(index);
     }
-
-    @Override
-    public void run() {
-        try {
-            QueryService.Processor<QueryServiceHandler> processor = new QueryService.Processor<QueryServiceHandler>(this);
-            TServerTransport serverTransport = new TServerSocket(localPort);
-            TServer server = new TThreadPoolServer(new
-                        TThreadPoolServer.Args(serverTransport).processor(processor));
-
-            server.serve();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-    
 }

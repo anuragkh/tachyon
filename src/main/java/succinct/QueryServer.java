@@ -7,22 +7,21 @@ import org.apache.thrift.server.TServer.Args;
 import org.apache.thrift.server.TSimpleServer;
 import org.apache.thrift.server.TThreadPoolServer;
 
-import succinct.thrift.MasterServiceHandler;
-import succinct.thrift.MasterService;
+import succinct.thrift.QueryServiceHandler;
+import succinct.thrift.QueryService;
 import succinct.thrift.Commons;
 
 import java.io.IOException;
 
-public class SuccinctMaster {
+public class QueryServer {
 
   public static void main(String[] args) throws IOException {
-    String[] hostNames = new String[args.length - 1];
     String tachyonMasterAddress = args[0];
-    System.arraycopy(args, 1, hostNames, 0, args.length - 1);
-    MasterServiceHandler masterService = new MasterServiceHandler(hostNames);
+    String dataPath = args[1];
+    QueryServiceHandler queryService = new QueryServiceHandler(tachyonMasterAddress, dataPath, Commons.delim, 0);
     try {
-      MasterService.Processor<MasterServiceHandler> processor = new MasterService.Processor<MasterServiceHandler>(masterService);
-      TServerTransport serverTransport = new TServerSocket(Commons.MASTER_BASE_PORT);
+      QueryService.Processor<QueryServiceHandler> processor = new QueryService.Processor<QueryServiceHandler>(queryService);
+      TServerTransport serverTransport = new TServerSocket(Commons.SERVER_BASE_PORT);
       TServer server = new TThreadPoolServer(new
                   TThreadPoolServer.Args(serverTransport).processor(processor));
       server.serve();

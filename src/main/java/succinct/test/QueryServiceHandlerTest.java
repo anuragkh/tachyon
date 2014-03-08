@@ -12,7 +12,7 @@ public class QueryServiceHandlerTest {
 	public static void main(String[] args) {
 		try {
 			String tachyonMasterAddress = args[0];
-			QueryServiceHandler handler = new QueryServiceHandler(tachyonMasterAddress, args[1], (byte)2, 1, 10000);
+			QueryServiceHandler handler = new QueryServiceHandler(tachyonMasterAddress, args[1], (byte)2, 1);
 			handler.initialize(0);
 			BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 			while(true) {

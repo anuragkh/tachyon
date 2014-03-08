@@ -10,8 +10,7 @@ public class LocationIterator implements Iterator<Long> {
     
     private SuccinctService.Client rClient;
 
-    private Map<Integer, Map<Integer, Range>> rangeMap;
-    private int currentClientId;
+    private Map<Integer, Range> rangeMap;
     private int currentServerId;
     private long currentIndex;
     private long currentIndexLimit;
@@ -20,23 +19,23 @@ public class LocationIterator implements Iterator<Long> {
     public LocationIterator(SuccinctService.Client rClient, String query) {
         this.rClient = rClient;
         try {
-            this.rangeMap = rClient.getRanges(query);
+             this.rangeMap = rClient.getRanges(query);
         } catch(Exception e) {
             System.out.println("Error: " + e.toString());
             e.printStackTrace();
         }
-        this.currentClientId = 0;
         this.currentServerId = 0;
-        Range currentRange = this.rangeMap.get(currentClientId).get(currentServerId);
-        this.currentIndex = currentRange.getStartIndex();
-        this.currentIndexLimit = currentRange.getEndIndex();
         int numNonEmptyRanges = 0;
         for(int i = 0; i < rangeMap.size(); i++) {
-            for(int j = 0; j < rangeMap.get(i).size(); j++) {
-                Range p = rangeMap.get(i).get(j);
-                if(p.getStartIndex() <= p.getEndIndex()) numNonEmptyRanges++;
-            }
+            Range p = rangeMap.get(i);
+            if(numNonEmptyRanges == 0) this.currentServerId = i;
+            if(p.getStartIndex() <= p.getEndIndex()) numNonEmptyRanges++;
         }
+
+        Range currentRange = this.rangeMap.get(currentServerId);
+        this.currentIndex = currentRange.getStartIndex();
+        this.currentIndexLimit = currentRange.getEndIndex();
+
         this.isFinished = (numNonEmptyRanges == 0);
     }
 
@@ -50,7 +49,7 @@ public class LocationIterator implements Iterator<Long> {
         if(isFinished) return null;
         long ret;
         try {
-            ret = rClient.getLocation(currentClientId, currentServerId, currentIndex);
+            ret = rClient.getLocation(currentServerId, currentIndex);
         } catch(Exception e) {
             System.out.println("Error: " + e.toString());
             return null;
@@ -58,14 +57,11 @@ public class LocationIterator implements Iterator<Long> {
         currentIndex++;
         if(currentIndex > currentIndexLimit) {
             currentServerId++;
-            if(currentServerId == rangeMap.get(currentClientId).size()) {
-                currentServerId = 0;
-                currentClientId++;
-                if(currentClientId == rangeMap.size())
-                    isFinished = true;
+            if(currentServerId == rangeMap.size()) {
+                isFinished = true;
             }
             if(!isFinished) {
-                Range currentRange = this.rangeMap.get(currentClientId).get(currentServerId);
+                Range currentRange = this.rangeMap.get(currentServerId);
                 currentIndex = currentRange.getStartIndex();
                 currentIndexLimit = currentRange.getEndIndex();
             }
