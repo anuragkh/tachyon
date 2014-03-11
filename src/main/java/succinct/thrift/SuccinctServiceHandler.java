@@ -63,6 +63,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
                 while((c = (char)in.read()) != '\u0003') {
                     q += c;
                 }
+                System.out.println(q);
                 queries[i] = q;
             }
         } catch (Exception e) {
@@ -195,9 +196,9 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 
 	        	queryServers.add(client);
 	        	serverTransports.add(transport);
-	        	System.out.print("Connected!");
+	        	System.out.println("Connected!");
 	      	}
-	      	System.out.println("Setup all connections!");
+	      	System.out.println("Setup all connections! Currently have " + queryServers.size() + " connections.");
 	    } catch (Exception e) {
 	      	System.out.println("Error: " + e.toString());
 	      	return -1;

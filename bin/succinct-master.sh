@@ -32,4 +32,4 @@ HOSTS=`cat "$HOSTLIST"|sed  "s/#.*$//;/^$/d"`
 for slave in $HOSTS; do
 	ARGS="$ARGS $slave"
 done
-(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="MASTER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.SuccinctMaster $MASTER_ADDRESS $ARGS > $TACHYON_LOGS_DIR/master.log.$now 2>&1) &
+(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="MASTER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.SuccinctMaster $MASTER_ADDRESS $ARGS > $TACHYON_LOGS_DIR/succinct.master.log.$now 2>&1) &

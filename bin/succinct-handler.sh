@@ -33,4 +33,4 @@ for slave in $HOSTS; do
 	ARGS="$ARGS $slave"
 done
 echo "Starting QueryHandler @ `hostname`"
-(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="WORKER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.QueryHandler $ARGS > $TACHYON_LOGS_DIR/client.log@$now 2>&1) &
+(nohup $JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME -Dtachyon.logger.type="WORKER_LOGGER" -Dlog4j.configuration=file:$TACHYON_CONF_DIR/log4j.properties $TACHYON_JAVA_OPTS succinct.QueryHandler $ARGS > $TACHYON_LOGS_DIR/succinct.handler.log@$now 2>&1) &

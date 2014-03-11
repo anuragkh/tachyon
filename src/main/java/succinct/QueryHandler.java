@@ -19,8 +19,6 @@ public class QueryHandler {
   public static void main(String[] args) throws IOException {
     String[] hostNames = args;
     try {
-      SuccinctServiceHandler initHandler = new SuccinctServiceHandler(hostNames);
-      initHandler.initialize(0);
       HandlerProcessorFactory handlerFactory = new HandlerProcessorFactory(hostNames);
       TServerTransport serverTransport = new TServerSocket(Commons.HANDLER_BASE_PORT);
       TServer server = new TThreadPoolServer(new

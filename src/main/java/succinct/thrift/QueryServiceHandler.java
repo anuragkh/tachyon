@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.Iterator;
+import java.util.Arrays;
 
 import java.io.File;
 import java.io.OutputStream;
@@ -691,6 +692,7 @@ public class QueryServiceHandler implements QueryService.Iface {
     /* Get range of SA positions using Backward search */
     private Pair<Long, Long> getRangeBck(char[] p) {
         int m = p.length;
+        if(m == 0) return new Pair<Long, Long>(0L, -1L);
         if (m <= contextLen) {
             return getRangeBckSlow(p);
         }
@@ -809,6 +811,7 @@ public class QueryServiceHandler implements QueryService.Iface {
     private void copyDataStructures() {
         File sourceDir = new File(this.dataPath);
         File[] sourceFiles = sourceDir.listFiles();
+        Arrays.sort(sourceFiles);
         File sourceFile = sourceFiles[0];
         String destDir = "tachyon://" + tachyonMasterAddress + ":" + 19998 + "/" + sourceDir.getName();
 
@@ -900,6 +903,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         // Setup Tachyon buffers
         File sourceDir = new File(this.dataPath);
         File[] sourceFiles = sourceDir.listFiles();
+        Arrays.sort(sourceFiles);
         File sourceFile = sourceFiles[0];
         String tachyonDir = "/" + sourceDir.getName();
         String tachyonPath = tachyonDir + "/" + sourceFile.getName();
