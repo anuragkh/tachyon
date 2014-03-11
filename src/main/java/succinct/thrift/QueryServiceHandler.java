@@ -1,7 +1,5 @@
 package succinct.thrift;
 
-import org.apache.thrift.TException;
-
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.List;
@@ -23,19 +21,8 @@ import java.nio.ByteOrder;
 import java.nio.LongBuffer;
 import java.nio.IntBuffer;
 
-import tachyon.client.InStream;
-import tachyon.client.TachyonByteBuffer;
 import tachyon.client.TachyonFS;
-import tachyon.client.TachyonFile;
-import tachyon.client.ReadType;
 import tachyon.command.TFsShell;
-
-import org.apache.thrift.transport.TServerSocket;
-import org.apache.thrift.transport.TServerTransport;
-import org.apache.thrift.server.TServer;
-import org.apache.thrift.server.TServer.Args;
-import org.apache.thrift.server.TSimpleServer;
-import org.apache.thrift.server.TThreadPoolServer;
 
 public class QueryServiceHandler implements QueryService.Iface {
 
@@ -45,51 +32,51 @@ public class QueryServiceHandler implements QueryService.Iface {
 	// Local data structures
 	TachyonFS tachyonClient;
 
-	ByteBuffer cmap;
-	LongBuffer context;
-	ByteBuffer slist;
-	ByteBuffer dbpos;			
-	LongBuffer sa;
-	LongBuffer sainv;
-	LongBuffer neccol;
-	LongBuffer necrow;
-	LongBuffer rowoffsets;
-	LongBuffer coloffsets;
-	LongBuffer celloffsets;
-	IntBuffer rowsizes;
-	IntBuffer colsizes;
-	IntBuffer roff;
-	IntBuffer coff;
-	ByteBuffer[] wavelettree;
+	private ByteBuffer cmap;
+	private LongBuffer context;
+	private ByteBuffer slist;
+	private ByteBuffer dbpos;			
+	private LongBuffer sa;
+	private LongBuffer sainv;
+	private LongBuffer neccol;
+	private LongBuffer necrow;
+	private LongBuffer rowoffsets;
+	private LongBuffer coloffsets;
+	private LongBuffer celloffsets;
+	private IntBuffer rowsizes;
+	private IntBuffer colsizes;
+	private IntBuffer roff;
+	private IntBuffer coff;
+	private ByteBuffer[] wavelettree;
 
 	// Metadata
-	long sa_n;
-	long csa_n;
-	int alpha_size;
-	int sigma_size;
-	int bits;
-	int csa_bits;
-	int l;
-	int two_l;
-	int context_size;
+	private long saN;
+	private long csaN;
+	private int alphaSize;
+	private int sigmaSize;
+	private int bits;
+	private int csaBits;
+	private int l;
+	private int twoL;
+	private int contextSize;
+
+    private int contextLen;
 
 	// Table data structures
-	int[][] decode_table;
-    ArrayList<HashMap<Integer, Integer>> encode_table;
-    short[] C16 = new short[17];
-    char[] offbits = new char[17];
-    char[][] smallrank = new char[65536][16];
+	private int[][] decodeTable;
+    private ArrayList<HashMap<Integer, Integer>> encodeTable;
+    private short[] C16 = new short[17];
+    private char[] offbits = new char[17];
+    private char[][] smallrank = new char[65536][16];
 
     // Book keeping data structures
-    int option;
-    long splitOffset;
-    FileOutputStream dataFile;
-    String dataPath;
-    byte delim;
-    HashMap<String, Long> keyToValueOffsetMap;
-    TreeMap<Long, String> valueOffsetToKeyMap;
-    boolean isInitialized;
-    String tachyonMasterAddress;
+    private int option;
+    private long splitOffset;
+    private String dataPath;
+    private byte delim;
+    private HashMap<String, Long> recordOffsetMap;
+    private TreeMap<Long, String> recordMap;
+    private String tachyonMasterAddress;
 
     // TODO: FIX LATER!
     public static class Pair<T1, T2> {
@@ -142,8 +129,8 @@ public class QueryServiceHandler implements QueryService.Iface {
         assert (i >= 0);
 
         long val;
-        long s = (long)(i) * csa_bits;
-        long e = s + (csa_bits - 1);
+        long s = (long)(i) * csaBits;
+        long e = s + (csaBits - 1);
 
         if ((s / 64) == (e / 64)) {
             val = B.get((int)(s / 64L)) << (s % 64);
@@ -291,7 +278,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         block_class = (int) getValPos(bitmap, pos, 4);
         pos += 4;
         block_offset = (int) getValPos(bitmap, pos, offbits[block_class]);
-        lastblock = decode_table[block_class][block_offset];
+        lastblock = decodeTable[block_class][block_offset];
 
         long count = 0;
         for (i = 0; i < 16; i++) {
@@ -416,7 +403,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         block_class = (int) getValPos(bitmap, pos, 4);
         pos += 4;
         block_offset = (int) getValPos(bitmap, pos, offbits[block_class]);
-        lastblock = decode_table[block_class][block_offset];
+        lastblock = decodeTable[block_class][block_offset];
 
         long count = 0;
         for (i = 0; i < 16; i++) {
@@ -431,7 +418,6 @@ public class QueryServiceHandler implements QueryService.Iface {
         return sel;
     }
 
-    // TESTED
     private long getRank1(ByteBuffer B, int startPos, int query) {
         if(query < 0) return 0;
     
@@ -498,17 +484,15 @@ public class QueryServiceHandler implements QueryService.Iface {
         block_class = (int) getValPos(bitmap, (int)pos, 4);
         pos += 4;
         block_offset = (int) getValPos(bitmap, (int)pos, offbits[block_class]);   
-        res += smallrank[decode_table[block_class][block_offset]][l1_idx];
+        res += smallrank[decodeTable[block_class][block_offset]][l1_idx];
 
         return res;
     }
 
-    // TESTED
     private long getRank0(ByteBuffer B, int startPos, int i) {
         return i - getRank1(B, startPos, i) + 1;
     }
 
-    // TESTED
     private static int getRank1(LongBuffer B, int startPos, int size, long i) {
         int sp = 0, ep = size - 1;
         int m;
@@ -523,7 +507,6 @@ public class QueryServiceHandler implements QueryService.Iface {
         return ep + 1;
     }
 
-    // TESTED
     private long getValueWtree(ByteBuffer wtree, int contextPos, int cellPos, int s, int e) {
 
         char m = (char)wtree.get();
@@ -551,7 +534,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         long c_num, r_off;
 
         // Search columnoffset
-        c = getRank1(coloffsets, 0, sigma_size, i) - 1;
+        c = getRank1(coloffsets, 0, sigmaSize, i) - 1;
 
         // Get columnoffset
         c_num = coloffsets.get(c);
@@ -588,18 +571,18 @@ public class QueryServiceHandler implements QueryService.Iface {
             v++;
         }
         
-        r = modulo(getRank1(dbpos, 0, (int)i) - 1, sa_n);
+        r = modulo(getRank1(dbpos, 0, (int)i) - 1, saN);
         a = getVal(sa, (int)r);
 
-        return modulo((two_l * a) - v, sa_n);
+        return modulo((twoL * a) - v, saN);
     }
 
     private long lookupSAinv(long i) {
 
         long acc, pos;
-        long v = i % two_l;
-        acc = getVal(sainv, (int)(i / two_l));
-        pos = getSelect1(dbpos, 0, (int)acc);
+        long v = i % twoL;
+        acc = getVal(sainv, (int) (i / twoL));
+        pos = getSelect1(dbpos, 0, (int) acc);
         while (v != 0) {
             pos = accessPsi(pos);
             v--;
@@ -632,7 +615,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         s = lookupSAinv(i);
         int k;
         for (k = 0;  k < j - i + 1; k++) {
-            txt[k] = (char)slist.get(getRank1(coloffsets, 0, sigma_size, s) - 1);
+            txt[k] = (char)slist.get(getRank1(coloffsets, 0, sigmaSize, s) - 1);
             s = accessPsi(s);
         }
         
@@ -647,7 +630,7 @@ public class QueryServiceHandler implements QueryService.Iface {
         long s = lookupSAinv(i);
         char c;
 
-        while((c = (char)slist.get(getRank1(coloffsets, 0, sigma_size, s) - 1)) != this.delim) {
+        while((c = (char)slist.get(getRank1(coloffsets, 0, sigmaSize, s) - 1)) != this.delim) {
             extractedText.append(c);
             s = accessPsi(s);
         }
@@ -707,9 +690,8 @@ public class QueryServiceHandler implements QueryService.Iface {
 
     /* Get range of SA positions using Backward search */
     private Pair<Long, Long> getRangeBck(char[] p) {
-
         int m = p.length;
-        if (m <= 2) {
+        if (m <= contextLen) {
             return getRangeBckSlow(p);
         }
         Pair<Long, Long> range = new Pair<>(0L, -1L);
@@ -718,50 +700,66 @@ public class QueryServiceHandler implements QueryService.Iface {
         int start_off;
         long context_val, context_id;
 
-        if(C.containsKey(p[m - 3])) {
-            sigma_id = C.get(p[m - 3]).second;
-            context_val = computeContextVal(p, sigma_size, m - 2, 2);
-            
-            if(context_val == -1) return range;
-            if(!contexts.containsKey(context_val)) return range;
-            
+        if (C.containsKey(p[m - contextLen - 1])) {
+            sigma_id = C.get(p[m - contextLen - 1]).second;
+            context_val = computeContextVal(p, sigmaSize, m - contextLen, contextLen);
+
+            if (context_val == -1) {
+                return range;
+            }
+            if (!contexts.containsKey(context_val)) {
+                return range;
+            }
+
             context_id = contexts.get(context_val);
             start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
             sp = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
-            if(start_off + 1 < colsizes.get(sigma_id)) {
-            	ep = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
-        	} else if(sigma_id + 1 < sigma_size) {
-            	ep = coloffsets.get(sigma_id + 1) - 1;
-        	} else {
-                ep = sa_n - 1;
+            if (start_off + 1 < colsizes.get(sigma_id)) {
+                ep = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+            } else if (sigma_id + 1 < sigmaSize) {
+                ep = coloffsets.get(sigma_id + 1) - 1;
+            } else {
+                ep = saN - 1;
             }
-        } else return range;
+        } else {
+            return range;
+        }
 
-        if(sp > ep) return range;
+        if (sp > ep) {
+            return range;
+        }
 
-        for (int i = m - 4; i >= 0; i--) {
+        for (int i = m - contextLen - 2; i >= 0; i--) {
             if (C.containsKey(p[i])) {
                 sigma_id = C.get(p[i]).second;
-                context_val = computeContextVal(p, sigma_size, i + 1, 2);
-                
-                if(context_val == -1) return range;
-                if(!contexts.containsKey(context_val)) return range;
+                context_val = computeContextVal(p, sigmaSize, i + 1, contextLen);
+
+                if (context_val == -1) {
+                    return range;
+                }
+                if (!contexts.containsKey(context_val)) {
+                    return range;
+                }
 
                 context_id = contexts.get(context_val);
                 start_off = getRank1(neccol, coff.get(sigma_id), colsizes.get(sigma_id), context_id) - 1;
                 c1 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off);
 
-                if(start_off + 1 < colsizes.get(sigma_id)) {
-	                c2 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
-	            } else if(sigma_id + 1 < sigma_size) {
-	                c2 = coloffsets.get(sigma_id + 1) - 1;
-	            } else {
-                    c2 = sa_n - 1;
+                if (start_off + 1 < colsizes.get(sigma_id)) {
+                    c2 = coloffsets.get(sigma_id) + celloffsets.get(coff.get(sigma_id) + start_off + 1) - 1;
+                } else if (sigma_id + 1 < sigmaSize) {
+                    c2 = coloffsets.get(sigma_id + 1) - 1;
+                } else {
+                    c2 = saN - 1;
                 }
-            } else return range;
+            } else {
+                return range;
+            }
             sp = binSearchPsi(sp, c1, c2, false);
             ep = binSearchPsi(ep, c1, c2, true);
-            if (sp > ep) return range;
+            if (sp > ep) {
+                return range;
+            }
         }
         range.first = sp;
         range.second = ep;
@@ -801,27 +799,18 @@ public class QueryServiceHandler implements QueryService.Iface {
         this.option = option;
         this.delim = delim;
         this.dataPath = dataPath;
-        this.keyToValueOffsetMap = new HashMap<>();
-        this.valueOffsetToKeyMap = new TreeMap<>();
+        this.recordOffsetMap = new HashMap<>();
+        this.recordMap = new TreeMap<>();
+        this.contextLen = 3;
         this.splitOffset = 0;
-        if(option == 0) {
-            try {
-                this.dataFile = new FileOutputStream(new File(this.dataPath));
-            } catch(IOException e) {
-                System.err.println("Error: QueryServiceHandler.java:QueryServiceHandler(): " + e.toString());
-            }
-        } else {
-            this.dataFile = null;
-        }
 
     }
 
     private void copyDataStructures() {
-        File sourceDir = new File(this.dataPath + "_index");
-        File sourceFile = new File(this.dataPath);
-        String destDir = "tachyon://" + tachyonMasterAddress + ":" + 19998 + "/" + sourceFile.getName();
-        System.out.println("Source directory: [" + sourceDir.getName() + "]");
-        System.out.println("Destination directory: [" + destDir);
+        File sourceDir = new File(this.dataPath);
+        File[] sourceFiles = sourceDir.listFiles();
+        File sourceFile = sourceFiles[0];
+        String destDir = "tachyon://" + tachyonMasterAddress + ":" + 19998 + "/" + sourceDir.getName();
 
         // Create instance of TFsShell
         TFsShell shell = new TFsShell();
@@ -832,9 +821,9 @@ public class QueryServiceHandler implements QueryService.Iface {
         rmCmd[1] = destDir;
         try {
             if(shell.run(rmCmd) == -1) {
-                System.out.println("Delete successful!");
-            } else {
                 System.out.println("Delete failed!");
+            } else {
+                System.out.println("Delete successful!");
             }
         } catch(Exception e) {
             System.out.println("Error: QueryServiceHandler.java:copyDataStructures(): " + e.toString());
@@ -842,33 +831,30 @@ public class QueryServiceHandler implements QueryService.Iface {
         }
 
         // Copy files to destiantion
-        File[] sourceFiles = sourceDir.listFiles();
         String[] copyCmd = new String[3];
         copyCmd[0] = "copyFromLocal";
-        for(int i = 0; i < sourceFiles.length; i++) {
-            String sourceFilePath = sourceFiles[i].getAbsolutePath();
-            String destFilePath = destDir + "/" + sourceFiles[i].getName();
-            System.out.println("Copying file " + sourceFilePath + " to " + destFilePath + "...");
-            copyCmd[1] = sourceFilePath;
-            copyCmd[2] = destFilePath;
-            try {
-                if(shell.run(copyCmd) == -1) {
-                    System.out.println("Copy failed!");
-                } else {
-                    System.out.println("Copy successful!");
-                }
-            } catch(Exception e) {
-                System.out.println("Error: QueryServiceHandler.java:copyDataStructures(): " + e.toString());
-                e.printStackTrace();
+        String sourceFilePath = sourceFile.getAbsolutePath();
+        String destFilePath = destDir + "/" + sourceFile.getName();
+        System.out.println("Copying file " + sourceFilePath + " to " + destFilePath + "...");
+        copyCmd[1] = sourceFilePath;
+        copyCmd[2] = destFilePath;
+        try {
+            if(shell.run(copyCmd) == -1) {
+                System.out.println("Copy failed!");
+            } else {
+                System.out.println("Copy successful!");
             }
+        } catch(Exception e) {
+            System.out.println("Error: QueryServiceHandler.java:copyDataStructures(): " + e.toString());
+            e.printStackTrace();
         }
     }
 
-    private void readDataStructures(String path) throws IOException {
-
+    
+    private void readDataStructures() throws IOException {
         // Setup tables
-        this.decode_table = new int[17][];
-        this.encode_table = new ArrayList<>();
+        this.decodeTable = new int[17][];
+        this.encodeTable = new ArrayList<>();
         int[] q = new int[17];
         
         this.C16[0] = 2;
@@ -895,16 +881,16 @@ public class QueryServiceHandler implements QueryService.Iface {
                 this.C16[i] = this.C16[16 - i];
                 this.offbits[i] = this.offbits[16 - i];
             }
-            decode_table[i] = new int[this.C16[i]];
+            decodeTable[i] = new int[this.C16[i]];
             HashMap<Integer, Integer> encode_row = new HashMap<>();
-            this.encode_table.add(encode_row);
+            this.encodeTable.add(encode_row);
             q[i] = 0;
         }
         q[16] = 1;
         for (int i = 0; i <= 65535; i++) {
             int p = popcount(i);
-            decode_table[p % 16][q[p]] = i;
-            encode_table.get(p % 16).put(i, q[p]);
+            decodeTable[p % 16][q[p]] = i;
+            encodeTable.get(p % 16).put(i, q[p]);
             q[p]++;
             for (int j = 0; j < 16; j++) {
                 smallrank[i][j] = (char) popcount(i >> (15 - j));
@@ -912,78 +898,158 @@ public class QueryServiceHandler implements QueryService.Iface {
         }
 
         // Setup Tachyon buffers
+        File sourceDir = new File(this.dataPath);
+        File[] sourceFiles = sourceDir.listFiles();
+        File sourceFile = sourceFiles[0];
+        String tachyonDir = "/" + sourceDir.getName();
+        String tachyonPath = tachyonDir + "/" + sourceFile.getName();
+
         tachyonClient = TachyonFS.get("tachyon://" + tachyonMasterAddress + ":19998/");
         
-        tachyonClient.getFile(path + "/metadata").recache();
-        tachyonClient.getFile(path + "/cmap").recache();
-        tachyonClient.getFile(path + "/contxt").recache();
-        tachyonClient.getFile(path + "/slist").recache();
-        tachyonClient.getFile(path + "/dbpos").recache();
-        tachyonClient.getFile(path + "/sa").recache();
-        tachyonClient.getFile(path + "/sainv").recache();
-        tachyonClient.getFile(path + "/neccol").recache();
-        tachyonClient.getFile(path + "/necrow").recache();
-        tachyonClient.getFile(path + "/rowoffsets").recache();
-        tachyonClient.getFile(path + "/coloffsets").recache();
-        tachyonClient.getFile(path + "/celloffsets").recache();
-        tachyonClient.getFile(path + "/rowsizes").recache();
-        tachyonClient.getFile(path + "/colsizes").recache();
-        tachyonClient.getFile(path + "/roff").recache();
-        tachyonClient.getFile(path + "/coff").recache();
-
+        tachyonClient.getFile(tachyonPath).recache();
+        
+        // Read index file
+        ByteBuffer data = tachyonClient.getFile(tachyonPath).readByteBuffer().DATA.order(ByteOrder.nativeOrder());
+        
         // Read metadata
-        ByteBuffer metadata = tachyonClient.getFile(path + "/metadata").readByteBuffer().DATA;
-        metadata.order(ByteOrder.nativeOrder());
-        sa_n = metadata.getLong();
-        System.out.println("sa_n = " + sa_n);
-        csa_n = metadata.getLong();
-        System.out.println("csa_n = " + csa_n);
-        alpha_size = metadata.getInt();
-        System.out.println("alpha_size = " + alpha_size);
-        sigma_size = metadata.getInt();
-        System.out.println("sigma_size = " + sigma_size);
-        bits = metadata.getInt();
+        saN = data.getLong();
+        System.out.println("saN = " + saN);
+        csaN = data.getLong();
+        System.out.println("csaN = " + csaN);
+        alphaSize = data.getInt();
+        System.out.println("alphaSize = " + alphaSize);
+        sigmaSize = data.getInt();
+        System.out.println("sigmaSize = " + sigmaSize);
+        bits = data.getInt();
         System.out.println("bits = " + bits);
-        csa_bits = metadata.getInt();
-        System.out.println("csa_bits = " + csa_bits);
-        l = metadata.getInt();
+        csaBits = data.getInt();
+        System.out.println("csaBits = " + csaBits);
+        l = data.getInt();
         System.out.println("l = " + l);
-        two_l = metadata.getInt();
-        System.out.println("two_l = " + two_l);
-        context_size = metadata.getInt();
-        System.out.println("context_size = " + context_size);
-
-        wavelettree = new ByteBuffer[context_size];
-        for(int i = 0; i < context_size; i++) {
-            try {
-                tachyonClient.getFile(path + "/wavelettree_" + i).recache();
-                wavelettree[i] = tachyonClient.getFile(path + "/wavelettree_" + i).readByteBuffer().DATA.order(ByteOrder.nativeOrder());
-            } catch(Exception e) { // TODO: Do something better than this!
-                wavelettree[i] = null;
-            }
-        }
+        twoL = data.getInt();
+        System.out.println("twoL = " + twoL);
+        contextSize = data.getInt();
+        System.out.println("contextSize = " + contextSize);
 
         // Read byte buffers
-        cmap = tachyonClient.getFile(path + "/cmap").readByteBuffer().DATA.order(ByteOrder.nativeOrder());
-        context = tachyonClient.getFile(path + "/contxt").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        slist = tachyonClient.getFile(path + "/slist").readByteBuffer().DATA.order(ByteOrder.nativeOrder());
-        dbpos = tachyonClient.getFile(path + "/dbpos").readByteBuffer().DATA.order(ByteOrder.nativeOrder());
-        sa = tachyonClient.getFile(path + "/sa").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        sainv = tachyonClient.getFile(path + "/sainv").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        neccol = tachyonClient.getFile(path + "/neccol").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        necrow = tachyonClient.getFile(path + "/necrow").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        rowoffsets = tachyonClient.getFile(path + "/rowoffsets").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        coloffsets = tachyonClient.getFile(path + "/coloffsets").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        celloffsets = tachyonClient.getFile(path + "/celloffsets").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asLongBuffer();
-        rowsizes = tachyonClient.getFile(path + "/rowsizes").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asIntBuffer();
-        colsizes = tachyonClient.getFile(path + "/colsizes").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asIntBuffer();
-        roff = tachyonClient.getFile(path + "/roff").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asIntBuffer();
-        coff = tachyonClient.getFile(path + "/coff").readByteBuffer().DATA.order(ByteOrder.nativeOrder()).asIntBuffer();
+
+        // Read cmap
+        int cmapSize = (int) data.getLong();
+        System.out.println("cmapSize = " + cmapSize);
+        cmap = data.slice().order(ByteOrder.nativeOrder());
+        // cmap.limit(cmapSize);
+        data.position(data.position() + cmapSize);
+
+        // Read contexts
+        int contextSize = (int) data.getLong();
+        System.out.println("contextSize = " + contextSize);
+        context = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // context.limit(contextSize);
+        data.position(data.position() + contextSize);
+
+        // Read slist
+        int slistSize = (int) data.getLong();
+        System.out.println("slistSize = " + slistSize);
+        slist = data.slice().order(ByteOrder.nativeOrder());
+        // slist.limit(slistSize);
+        data.position(data.position() + slistSize);
+
+        // Read dbpos
+        int dbposSize = (int) data.getLong();
+        System.out.println("dbposSize = " + dbposSize);
+        dbpos = data.slice().order(ByteOrder.nativeOrder());
+        // dbpos.limit(dbposSize);
+        data.position(data.position() + dbposSize);
+
+        // Read sa
+        int saSize = (int) data.getLong();
+        System.out.println("saSize = " + saSize);
+        sa = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // sa.limit(saSize);
+        data.position(data.position() + saSize);
+
+        // Read sainv
+        int sainvSize = (int) data.getLong();
+        System.out.println("sainvSize = " + sainvSize);
+        sainv = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // sainv.limit(sainvSize);
+        data.position(data.position() + sainvSize);
+
+        // Read neccol
+        int neccolSize = (int) data.getLong();
+        System.out.println("neccolSize = " + neccolSize);
+        neccol = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // neccol.limit(neccolSize);
+        data.position(data.position() + neccolSize);
+
+        // Read necrow
+        int necrowSize = (int) data.getLong();
+        System.out.println("necrowSize = " + necrowSize);
+        necrow = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // necrow.limit(necrowSize);
+        data.position(data.position() + necrowSize);
+
+        // Read rowoffsets
+        int rowoffsetsSize = (int) data.getLong();
+        System.out.println("rowoffsetsSize = " + rowoffsetsSize);
+        rowoffsets = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // rowoffsets.limit(rowoffsetsSize);
+        data.position(data.position() + rowoffsetsSize);
+
+        // Read coloffsets
+        int coloffsetsSize = (int) data.getLong();
+        System.out.println("coloffsetsSize = " + coloffsetsSize);
+        coloffsets = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // coloffsets.limit(coloffsetsSize);
+        data.position(data.position() + coloffsetsSize);
+
+        // Read celloffsets
+        int celloffsetsSize = (int) data.getLong();
+        System.out.println("celloffsetsSize = " + celloffsetsSize);
+        celloffsets = data.slice().order(ByteOrder.nativeOrder()).asLongBuffer();
+        // celloffsets.limit(coloffsetsSize);
+        data.position(data.position() + celloffsetsSize);
+
+        // Read rowsizes
+        int rowsizesSize = (int) data.getLong();
+        System.out.println("rowsizesSize = " + rowsizesSize);
+        rowsizes = data.slice().order(ByteOrder.nativeOrder()).asIntBuffer();
+        // rowsizes.limit(rowsizesSize);
+        data.position(data.position() + rowsizesSize);
+
+        int colsizesSize = (int) data.getLong();
+        System.out.println("colsizesSize = " + colsizesSize);
+        colsizes = data.slice().order(ByteOrder.nativeOrder()).asIntBuffer();
+        // colsizes.limit(colsizesSize);
+        data.position(data.position() + colsizesSize);
+
+        int roffSize = (int) data.getLong();
+        System.out.println("roffSize = " + roffSize);
+        roff = data.slice().order(ByteOrder.nativeOrder()).asIntBuffer();
+        // roff.limit(roffSize);
+        data.position(data.position() + roffSize);
+
+        int coffSize = (int) data.getLong();
+        System.out.println("coffSize = " + coffSize);
+        coff = data.slice().order(ByteOrder.nativeOrder()).asIntBuffer();
+        // coff.limit(roffSize);
+        data.position(data.position() + coffSize);
+
+        wavelettree = new ByteBuffer[this.contextSize];
+        for(int i = 0; i < this.contextSize; i++) {
+            int wavelettreeSize = (int) data.getLong();
+            if(wavelettreeSize == 0) {
+                wavelettree[i] = null;
+            } else {
+                wavelettree[i] = data.slice().order(ByteOrder.nativeOrder());
+            }
+            data.position(data.position() + wavelettreeSize);
+        }
         
         // TODO: FIX LATER!!!
         C = new HashMap<>();
         contexts = new HashMap<>();
-        for(int i = 0; i < alpha_size; i++) {
+        for(int i = 0; i < alphaSize; i++) {
             char c = (char)cmap.get();
             long v1 = cmap.getLong();
             int v2 = cmap.getInt();
@@ -991,7 +1057,7 @@ public class QueryServiceHandler implements QueryService.Iface {
             System.out.println(c + "=>" + v1 + "," + v2);
         }
 
-        for(int i = 0; i < context_size; i++) {
+        for(int i = 0; i < this.contextSize; i++) {
             contexts.put(context.get(), context.get());
         }
     }
@@ -1011,26 +1077,13 @@ public class QueryServiceHandler implements QueryService.Iface {
 
     @Override
     public int initialize(int mode) throws org.apache.thrift.TException {
-        
-        if(dataFile != null) {
-            try {   
-                dataFile.close();
-            } catch (IOException e) {
-                System.err.println("Error: QueryServiceHandler.java:initialize(mode): " + e.toString());
-                e.printStackTrace();
-                return -1;
-            }
-        }
-
         System.out.println("Copying data structures...");
         copyDataStructures();
         System.out.println("Finished copying data structures...");
 
         System.out.println("Reading data structures...");
         try {
-            File sourceFile = new File(this.dataPath);
-            String tachyonPath = "/" + sourceFile.getName();
-            readDataStructures(tachyonPath);
+            readDataStructures();
             System.out.println("Finished reading data structures...");
         } catch (IOException e) {
             System.out.println("Error: QueryServiceHandler.java:initialize(mode): " + e.toString());
@@ -1055,33 +1108,53 @@ public class QueryServiceHandler implements QueryService.Iface {
     	return new String(extract_text(loc - splitOffset, (loc - splitOffset) + (bytes - 1)));
     }
 
+    public String accessRecord(String recordId, long offset, long bytes) throws org.apache.thrift.TException {
+        long recordPointer = recordOffsetMap.get(recordId);
+        long recordOffset = recordPointer + offset;
+
+        String txt = "";
+        long s;
+
+        s = lookupSAinv(recordOffset);
+        int k;
+        for (k = 0;  k < bytes; k++) {
+            char c = (char)slist.get(getRank1(coloffsets, 0, sigmaSize, s) - 1);
+            if(c == (char)delim) {
+                break;
+            }
+            txt += c;
+            s = accessPsi(s);
+        }
+        return txt;
+    }
+
     @Override
-    public long getKeyToValuePointer(String key) throws org.apache.thrift.TException {
-        Long ret = keyToValueOffsetMap.get(key);
+    public long getRecordPointer(String recordId) throws org.apache.thrift.TException {
+        Long ret = recordOffsetMap.get(recordId);
         return (ret == null || ret < 0) ? -1 : ret;
     }
 
     @Override
-    public String getValue(String key) throws org.apache.thrift.TException {
-        long valuePointer = getKeyToValuePointer(key);
-        if(valuePointer >= 0) {
-            return extractUntilDelim(valuePointer);
+    public String getRecord(String recordId) throws org.apache.thrift.TException {
+        long recordPointer = getRecordPointer(recordId);
+        if(recordPointer >= 0) {
+            return extractUntilDelim(recordPointer);
         }
         return String.valueOf((char)delim);
     }
 
     @Override
-    public Set<String> getKeys(String substring) throws org.apache.thrift.TException {
+    public Set<String> getRecordIds(String substring) throws org.apache.thrift.TException {
         Pair<Long, Long> range = getRangeBck(substring.toCharArray());
         long sp = range.first, ep = range.second;
 
-        Set<String> keys = new TreeSet<>();
+        Set<String> recordIds = new TreeSet<>();
         for (long i = 0; i < ep - sp + 1; i++) {
-            Map.Entry votkMapEntry = valueOffsetToKeyMap.floorEntry(lookupSA(sp + i));
-            if(votkMapEntry != null && keyToValueOffsetMap.get((String)votkMapEntry.getValue()) >= 0)
-                keys.add((String)votkMapEntry.getValue());
+            Map.Entry recordIdMapEntry = recordMap.floorEntry(lookupSA(sp + i));
+            if(recordIdMapEntry != null && recordOffsetMap.get((String)recordIdMapEntry.getValue()) >= 0)
+                recordIds.add((String)recordIdMapEntry.getValue());
         }
-        return keys;
+        return recordIds;
     }
 
     @Override
@@ -1091,18 +1164,50 @@ public class QueryServiceHandler implements QueryService.Iface {
         
         Map<String, String> records = new TreeMap<>();
         for (long i = 0; i < ep - sp + 1; i++) {
-            Map.Entry votkMapEntry = valueOffsetToKeyMap.floorEntry(lookupSA(sp + i));
-            if(votkMapEntry != null && keyToValueOffsetMap.get((String)votkMapEntry.getValue()) >= 0)
-                records.put((String)votkMapEntry.getValue(), extractUntilDelim((Long)votkMapEntry.getKey()));
+            Map.Entry recordIdMapEntry = recordMap.floorEntry(lookupSA(sp + i));
+            if(recordIdMapEntry != null && recordOffsetMap.get((String)recordIdMapEntry.getValue()) >= 0)
+                records.put((String)recordIdMapEntry.getValue(), extractUntilDelim((Long)recordIdMapEntry.getKey()));
         }
         return records;
     }
 
     @Override
-    public int deleteRecord(String key) throws org.apache.thrift.TException {
-        long valuePointer = getKeyToValuePointer(key);
-        if(valuePointer < 0) return -1;
-        keyToValueOffsetMap.put(key, keyToValueOffsetMap.get(key) | (1L << 63));
+    public long countRecords(String substring) throws org.apache.thrift.TException {
+        Pair<Long, Long> range = getRangeBck(substring.toCharArray());
+        long sp = range.first, ep = range.second;
+        
+        long count = 0;
+        for (long i = 0; i < ep - sp + 1; i++) {
+            Map.Entry recordIdMapEntry = recordMap.floorEntry(lookupSA(sp + i));
+            if(recordIdMapEntry != null && recordOffsetMap.get((String)recordIdMapEntry.getValue()) >= 0)
+                count++;
+        }
+        return count;
+    }
+
+    @Override
+    public Map<String,Long> freqCountRecords(String substring) throws org.apache.thrift.TException {
+        Pair<Long, Long> range = getRangeBck(substring.toCharArray());
+        long sp = range.first, ep = range.second;
+        
+        Map<String, Long> recordCounts = new TreeMap<>();
+        for (long i = 0; i < ep - sp + 1; i++) {
+            Map.Entry recordIdMapEntry = recordMap.floorEntry(lookupSA(sp + i)); 
+            if(recordIdMapEntry != null && recordOffsetMap.get((String)recordIdMapEntry.getValue()) >= 0) {
+                if(!recordCounts.containsKey((String)recordIdMapEntry.getValue()))
+                    recordCounts.put((String)recordIdMapEntry.getValue(), 1L);
+                else
+                    recordCounts.put((String)recordIdMapEntry.getValue(), recordCounts.get((String)recordIdMapEntry.getValue()) + 1);
+            }
+        }
+        return recordCounts;
+    }
+
+    @Override
+    public int deleteRecord(String recordId) throws org.apache.thrift.TException {
+        long recordPointer = getRecordPointer(recordId);
+        if(recordPointer < 0) return -1;
+        recordOffsetMap.put(recordId, recordOffsetMap.get(recordId) | (1L << 63));
         return 0;
     }
 

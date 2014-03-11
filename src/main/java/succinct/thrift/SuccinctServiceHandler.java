@@ -9,9 +9,16 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.concurrent.*;
+import java.util.Random;
 
 import java.io.IOException;
 import java.io.File;
+import java.io.DataInputStream;
+import java.io.FileInputStream;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.BufferedWriter;
 
 import java.nio.file.Files;
 
@@ -24,10 +31,10 @@ import org.apache.thrift.transport.TTransportException;
 
 public class SuccinctServiceHandler implements SuccinctService.Iface {
 
-	private int numServers = 1;
+	private final long SPLIT_SIZE = 2684354560L;    // TODO: Remove
+    private final int NUM_SPLITS = 5;               // TODO: Remove
 	private final byte delim = 10;
 	private String[] hostNames;
-	private TreeMap<Long, Integer> clientOffsetMap;
     private ArrayList<TTransport> serverTransports;
   	private ArrayList<QueryService.Client> queryServers;
 	
@@ -36,9 +43,145 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 		this.hostNames = hostNames;
 		this.serverTransports = new ArrayList<>();
 		this.queryServers = new ArrayList<>();
-        this.clientOffsetMap = new TreeMap<>();
 		System.out.println("Initialization complete!");
 	}
+
+    public String[] readQueries(String queriesPath, int numQueries) {
+        System.out.println("Loading queries " + numQueries + " from path: " + queriesPath);
+        File queryFile = new File(queriesPath);
+        DataInputStream in = null;
+        String queries[] = new String[numQueries];
+        try {
+            in = new DataInputStream(new FileInputStream(queryFile));
+            int len = 8;    // Query Length
+            for(int i = 0; i < numQueries; i++) {
+                char c;
+                while((c = (char)in.read()) != '\t');
+                assert (in.read() == '\u0002');
+                int l = 0;
+                String q = "";
+                while((c = (char)in.read()) != '\u0003') {
+                    q += c;
+                }
+                queries[i] = q;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return queries;
+    }
+
+    public long[] generateRandoms(int numQueries) {
+        long[] randoms = new long[numQueries];
+        Random rand = new Random();
+        for(int i = 0; i < numQueries; i++) {
+            randoms[i] = rand.nextLong() % (SPLIT_SIZE * NUM_SPLITS);
+        }
+
+        return randoms;
+    }
+
+    @Override
+    public long testCountLatency(String queriesPath, int numQueries, int repeat) {
+        String[] queries = readQueries(queriesPath, numQueries);
+        long startTime;
+        double totTime;
+        try {
+            BufferedWriter res = new BufferedWriter(new FileWriter(new File("res_count_latency_" + numQueries + "_" + repeat)));
+            this.connectToQueryServers();
+            for(int i = 0; i < numQueries; i++) {
+                totTime = 0;
+                long c = 0;
+                for(int j = 0; j < repeat; j++) {
+                    startTime = System.nanoTime();
+                    long count = this.count(queries[i]);
+                    totTime += (double)(System.nanoTime() - startTime) / 1000.0;
+                    c += count;
+                }
+                totTime /= repeat;
+                c /= repeat;
+                res.write(c + "\t" + totTime + "\n");
+            }
+            this.disconnectFromQueryServers();
+            res.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    @Override
+    public long testLocateLatency(String queriesPath, int numQueries, int repeat) {
+        String[] queries = readQueries(queriesPath, numQueries);
+        long startTime;
+        double totTime;
+        try {
+            BufferedWriter res = new BufferedWriter(new FileWriter(new File("res_locate_latency_" + numQueries + "_" + repeat)));
+            this.connectToQueryServers();
+            for(int i = 0; i < numQueries; i++) {
+                totTime = 0;
+                long c = 0;
+                for(int j = 0; j < repeat; j++) {
+                    startTime = System.nanoTime();
+                    long count = this.locate(queries[i]).size();
+                    totTime += (double)(System.nanoTime() - startTime) / 1000.0;
+                    c += count;
+                }
+                totTime /= repeat;
+                c /= repeat;
+                res.write(c + "\t" + totTime + "\n");
+            }
+            this.disconnectFromQueryServers();
+            res.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    @Override
+    public long testExtractLatency(int numQueries, int repeat) {
+        long[] randoms = generateRandoms(numQueries);
+        long startTime;
+        double totTime;
+        try {
+            BufferedWriter res = new BufferedWriter(new FileWriter(new File("res_extract_latency_" + numQueries + "_" + repeat)));
+            this.connectToQueryServers();
+            for(int i = 0; i < numQueries; i++) {
+                totTime = 0;
+                long c = 0;
+                for(int j = 0; j < repeat; j++) {
+                    startTime = System.nanoTime();
+                    long bytes = this.extract(randoms[i], 1024).length();
+                    totTime += (double)(System.nanoTime() - startTime) / 1000.0;
+                    c += bytes;
+                }
+                totTime /= repeat;
+                c /= repeat;
+                res.write(randoms[i] + "\t" + c + "\t" + totTime + "\n");
+            }
+            this.disconnectFromQueryServers();
+            res.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    @Override
+    public long testCountThroughput(String queriesPath, int numQueries, int numThreads) {
+        return 0;
+    }
+
+    @Override
+    public long testLocateThroughput(String queriesPath, int numQueries, int numThreads) {
+        return 0;
+    }
+
+    @Override
+    public long testExtractThroughput(int numQueries, int numThreads) {
+        return 0;
+    }
 
 	@Override
     public int connectToQueryServers() throws org.apache.thrift.TException {
@@ -128,32 +271,63 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 
     @Override
     public String extract(long loc, long bytes) throws org.apache.thrift.TException {
-    	Integer lookup = this.clientOffsetMap.get(loc);
-        int clientId = (lookup == null) ? (Integer)(this.clientOffsetMap.lowerEntry(loc).getValue()) : lookup;
-    	return queryServers.get(clientId).extract(loc, bytes);
+        int clientId = (int)(loc / SPLIT_SIZE);
+        long clientLoc = loc % SPLIT_SIZE;
+    	return queryServers.get(clientId).extract(clientLoc, bytes);
     }
 
     @Override
-    public long getKeyToValuePointer(String key) throws org.apache.thrift.TException {
-    	return queryServers.get(key.hashCode() % queryServers.size()).getKeyToValuePointer(key);
+    public String accessRecord(String recordId, long offset, long bytes) throws org.apache.thrift.TException {
+        return queryServers.get(recordId.hashCode() % queryServers.size()).accessRecord(recordId, offset, bytes);
     }
 
     @Override
-    public String getValue(String key) throws org.apache.thrift.TException {
-    	return queryServers.get(key.hashCode() % queryServers.size()).getValue(key);	
+    public long getRecordPointer(String recordId) throws org.apache.thrift.TException {
+    	return queryServers.get(recordId.hashCode() % queryServers.size()).getRecordPointer(recordId);
     }
 
     @Override
-    public Set<String> getKeys(String substring) throws org.apache.thrift.TException {
-    	Set<String> keys = new TreeSet<>();
+    public String getRecord(String recordId) throws org.apache.thrift.TException {
+    	return queryServers.get(recordId.hashCode() % queryServers.size()).getRecord(recordId);	
+    }
+
+    @Override
+    public Set<String> getRecordIds(String substring) throws org.apache.thrift.TException {
+    	Set<String> recordIds = new TreeSet<>();
         for(int i = 0; i < queryServers.size(); i++) {
-            queryServers.get(i).send_getKeys(substring);
+            queryServers.get(i).send_getRecordIds(substring);
         }
 
     	for(int i = 0; i < queryServers.size(); i++) {
-    		keys.addAll(queryServers.get(i).recv_getKeys());
+    		recordIds.addAll(queryServers.get(i).recv_getRecordIds());
     	}
-    	return keys;
+    	return recordIds;
+    }
+
+    @Override
+    public long countRecords(String substring) throws org.apache.thrift.TException {
+        long count = 0;
+        for(int i = 0; i < queryServers.size(); i++) {
+            queryServers.get(i).send_countRecords(substring);
+        }
+
+        for(int i = 0; i < queryServers.size(); i++) {
+            count += queryServers.get(i).recv_countRecords();
+        }
+        return count;
+    }
+
+    @Override
+    public Map<String,Long> freqCountRecords(String substring) throws org.apache.thrift.TException {
+        Map<String, Long> countMap = new TreeMap<>();
+        for(int i = 0; i < queryServers.size(); i++) {
+            queryServers.get(i).send_freqCountRecords(substring);
+        }
+
+        for(int i = 0; i < queryServers.size(); i++) {
+            countMap.putAll(queryServers.get(i).recv_freqCountRecords());
+        }
+        return countMap;
     }
 
     @Override
@@ -169,8 +343,8 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     }
 
     @Override
-    public int deleteRecord(String key) throws org.apache.thrift.TException {
-    	return queryServers.get(key.hashCode() % queryServers.size()).deleteRecord(key);
+    public int deleteRecord(String recordId) throws org.apache.thrift.TException {
+    	return queryServers.get(recordId.hashCode() % queryServers.size()).deleteRecord(recordId);
     }
 
     @Override
