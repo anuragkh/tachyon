@@ -37,6 +37,275 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 	private String[] hostNames;
     private ArrayList<TTransport> serverTransports;
   	private ArrayList<QueryService.Client> queryServers;
+
+    class Receiver extends Thread {
+        private ArrayList<TTransport> serverTransports;
+        private ArrayList<QueryService.Client> queryServers;
+        private String queryType;
+        private static final long RECEIVE_DURATION = 300000000000L;
+        public Receiver(ArrayList<TTransport> serverTransports, ArrayList<QueryService.Client> queryServers, String queryType) {
+            this.serverTransports = serverTransports;
+            this.queryServers = queryServers;
+            this.queryType = queryType;
+        }
+
+        private List<Long> receiveLocate() throws org.apache.thrift.TException {
+            List<Long> locations = new ArrayList<>();
+            for(int i = 0; i < queryServers.size(); i++) {
+                locations.addAll(queryServers.get(i).recv_locate());
+            }
+            return locations;
+        } 
+
+        private long receiveCount() throws org.apache.thrift.TException {
+            long ret = 0;
+            for(int i = 0; i < queryServers.size(); i++) {
+                ret += queryServers.get(i).recv_count();
+            }
+            return ret;
+        }
+
+        private String receiveExtract(int clientId) throws org.apache.thrift.TException {
+            return queryServers.get(clientId).recv_extract();
+        }
+
+        private void countTest() throws org.apache.thrift.TException, IOException {
+            long countSum = 0;
+            long numResponses = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < RECEIVE_DURATION) {
+                countSum += receiveCount();
+                numResponses++;
+            }
+            long totTime = System.nanoTime() - startTime;
+            System.out.println("Thread throughput = " + ((double)numResponses) / ((double)(totTime)));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(new File("res_count_throughput")));
+            bw.write(((double)numResponses) / ((double)(totTime)) + "\n");
+            bw.close();
+        }
+
+        private void locateTest() throws org.apache.thrift.TException, IOException {
+            long locateSum = 0;
+            long numResponses = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < RECEIVE_DURATION) {
+                locateSum += receiveLocate().size();
+                numResponses++;
+            }
+            long totTime = System.nanoTime() - startTime;
+            System.out.println("Thread throughput = " + ((double)numResponses) / ((double)(totTime)));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(new File("res_locate_throughput")));
+            bw.write(((double)numResponses) / ((double)(totTime)) + "\n");
+            bw.close();
+        }
+
+        private void extractTest() throws org.apache.thrift.TException, IOException {
+            long extractSum = 0;
+            long numResponses = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < RECEIVE_DURATION) {
+                for(int i = 0; i < queryServers.size(); i++) {
+                    extractSum += receiveExtract(i).length();
+                    numResponses++;
+                }
+            }
+            long totTime = System.nanoTime() - startTime;
+            System.out.println("Thread throughput = " + ((double)numResponses) / ((double)(totTime)));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(new File("res_extract_throughput")));
+            bw.write(((double)numResponses) / ((double)(totTime)) + "\n");
+            bw.close();
+        }
+
+        @Override
+        public void run() {
+            try {
+                if(queryType.equals("count")) {
+                    countTest();
+                } else if(queryType.equals("locate")) {
+                    locateTest();
+                } else if(queryType.equals("extract")) {
+                    extractTest();
+                } else {
+                    System.out.println("Not supported");
+                }
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    class Tester extends Thread {
+        private ArrayList<TTransport> serverTransports;
+        private ArrayList<QueryService.Client> queryServers;
+        private String[] hostNames;
+        private String queryType;
+        private String[] queries;
+        private long[] randoms;
+        private static final long SEND_DURATION = 310000000000L;
+        private static final int SEND_SLOT = 1000;
+
+        public Tester(String [] hostNames, String[] queries, String queryType) {
+            this.serverTransports = new ArrayList<>();
+            this.queryServers = new ArrayList<>();
+            this.hostNames = hostNames;
+            this.queryType = queryType;
+            this.queries = queries;
+            this.randoms = null;
+        }
+
+        public Tester(String [] hostNames, long[] randoms, String queryType) {
+            this.serverTransports = new ArrayList<>();
+            this.queryServers = new ArrayList<>();
+            this.hostNames = hostNames;
+            this.queryType = queryType;
+            this.randoms = randoms;
+            this.queries = null;
+        }
+
+        public int connectToQueryServers() throws org.apache.thrift.TException {
+            try {
+                for(int i = 0; i < hostNames.length; i++) {
+                    System.out.println("Connecting to " + hostNames[i] + "...");
+                    TTransport transport = new TSocket(hostNames[i], Commons.SERVER_BASE_PORT);
+                    TProtocol protocol = new TBinaryProtocol(transport);
+                    QueryService.Client client = new QueryService.Client(protocol);
+                    transport.open();
+
+                    queryServers.add(client);
+                    serverTransports.add(transport);
+                    System.out.println("Connected!");
+                }
+                System.out.println("Setup all connections! Currently have " + queryServers.size() + " connections.");
+            } catch (Exception e) {
+                System.out.println("Error: " + e.toString());
+                return -1;
+            }
+            return 0;
+        }
+
+        public int disconnectFromQueryServers() throws org.apache.thrift.TException {
+            try {
+                for(int i = 0; i < hostNames.length; i++) {
+                    System.out.println("Disconnecting from " + hostNames[i] + "...");
+                    serverTransports.get(i).close();
+                    System.out.println("Done!");
+                }
+                queryServers.clear();
+                serverTransports.clear();
+                System.out.println("Destroyed all connections!");
+            } catch (Exception e) {
+                System.out.println("Error : " + e.toString());
+                return -1;
+            }
+            return 0;
+        }
+
+        public void sendLocate(String query) throws org.apache.thrift.TException {
+            for(int i = 0; i < queryServers.size(); i++) {
+                queryServers.get(i).send_locate(query);
+            }
+        }
+        
+        public void sendCount(String query) throws org.apache.thrift.TException {
+            for(int i = 0; i < queryServers.size(); i++) {
+                queryServers.get(i).send_count(query);
+            }
+        }
+
+        public void sendExtract(long loc, long bytes) throws org.apache.thrift.TException {
+            int clientId = (int)(loc / SPLIT_SIZE);
+            long clientLoc = loc % SPLIT_SIZE;
+            queryServers.get(clientId).send_extract(clientLoc, bytes);
+        }
+
+        public void countTest() throws org.apache.thrift.TException, InterruptedException {
+            connectToQueryServers();
+            Receiver receiveThread = new Receiver(serverTransports, queryServers, queryType);
+            System.out.println("Starting receiver...");
+            receiveThread.start();
+            System.out.println("Started");
+
+            // Sending logic
+            String query = queries[0];
+            int numQueries = queries.length;
+            int i = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < SEND_DURATION) {
+                if(i % SEND_SLOT == 0) {
+                    query = queries[i % numQueries];
+                }
+                sendCount(query);
+                i++;
+            }
+            long totTime = startTime - System.nanoTime();
+            System.out.println("Send rate: " + ((double)i)/((double)totTime));
+            receiveThread.join();
+            disconnectFromQueryServers();
+        }
+
+        public void locateTest() throws org.apache.thrift.TException, InterruptedException {
+            connectToQueryServers();
+            Receiver receiveThread = new Receiver(serverTransports, queryServers, queryType);
+            receiveThread.start();
+
+            // Sending logic
+            String query = queries[0];
+            int numQueries = queries.length;
+            int i = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < SEND_DURATION) {
+                if(i % SEND_SLOT == 0) {
+                    query = queries[i % numQueries];
+                }
+                sendLocate(query);
+                i++;
+            }
+            long totTime = startTime - System.nanoTime();
+            System.out.println("Send rate: " + ((double)i)/((double)totTime));
+            receiveThread.join();
+            disconnectFromQueryServers();
+        }
+
+        public void extractTest() throws org.apache.thrift.TException, InterruptedException {
+            connectToQueryServers();
+            Receiver receiveThread = new Receiver(serverTransports, queryServers, queryType);
+            receiveThread.start();
+
+            // Sending logic
+            long query = randoms[0];
+            int numQueries = randoms.length;
+            int i = 0;
+            long startTime = System.nanoTime();
+            while(System.nanoTime() - startTime < SEND_DURATION) {
+                if(i % SEND_SLOT == 0) {
+                    query = randoms[i % numQueries];
+                }
+                sendExtract(query, 1024);
+                i++;
+            }
+            long totTime = startTime - System.nanoTime();
+            System.out.println("Send rate: " + ((double)i)/((double)totTime));
+            receiveThread.join();
+            disconnectFromQueryServers();
+        }
+
+        @Override
+        public void run() {
+            try {
+                if(queryType.equals("count")) {
+                    countTest();
+                } else if(queryType.equals("locate")) {
+                    locateTest();
+                } else if(queryType.equals("extract")) {
+                    extractTest();
+                } else {
+                    System.out.println("Not supported");
+                }
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 	
 	public SuccinctServiceHandler(String[] hostNames) {
 		System.out.println("Initializing Succinct Service...");
@@ -57,13 +326,17 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
             for(int i = 0; i < numQueries; i++) {
                 char c;
                 while((c = (char)in.read()) != '\t');
-                assert (in.read() == '\u0002');
+                boolean test = (in.read() == '\u0002');
                 int l = 0;
                 String q = "";
-                while((c = (char)in.read()) != '\u0003') {
+                while(l != len) {
+                    c = (char)in.read();
+                    System.out.println("[" + c + "]");
                     q += c;
+                    l++;
                 }
-                System.out.println(q);
+                test = (in.read() == '\u0003');
+                System.out.println("[" + q + "] : " + q.length());
                 queries[i] = q;
             }
         } catch (Exception e) {
@@ -76,7 +349,8 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
         long[] randoms = new long[numQueries];
         Random rand = new Random();
         for(int i = 0; i < numQueries; i++) {
-            randoms[i] = rand.nextLong() % (SPLIT_SIZE * NUM_SPLITS);
+            randoms[i] = Math.abs(rand.nextLong() % (SPLIT_SIZE * NUM_SPLITS));
+            System.out.println("[" + randoms[i] + "]");
         }
 
         return randoms;
@@ -102,6 +376,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
                 totTime /= repeat;
                 c /= repeat;
                 res.write(c + "\t" + totTime + "\n");
+                System.out.println(c + "\t" + totTime);
             }
             this.disconnectFromQueryServers();
             res.close();
@@ -131,6 +406,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
                 totTime /= repeat;
                 c /= repeat;
                 res.write(c + "\t" + totTime + "\n");
+                System.out.println(c + "\t" + totTime);
             }
             this.disconnectFromQueryServers();
             res.close();
@@ -160,6 +436,7 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
                 totTime /= repeat;
                 c /= repeat;
                 res.write(randoms[i] + "\t" + c + "\t" + totTime + "\n");
+                System.out.println(randoms[i] + "\t" + c + "\t" + totTime);
             }
             this.disconnectFromQueryServers();
             res.close();
@@ -171,16 +448,64 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 
     @Override
     public long testCountThroughput(String queriesPath, int numQueries, int numThreads) {
+        String[] queries = readQueries(queriesPath, numQueries);
+        Tester[] testers = new Tester[numThreads];
+
+        System.out.println("Starting " + numThreads + " threads...");
+        for(int i = 0; i < numThreads; i++) {
+            testers[i] = new Tester(hostNames, queries, "count");
+            testers[i].start();
+        }
+        System.out.println("Started " + numThreads + " threads!");
+
+        for(int i = 0; i < numThreads; i++) {
+            try {
+                testers[i].join();
+            } catch (InterruptedException e) {
+                System.out.println("Error waiting for thread " + i + "...");
+                e.printStackTrace();
+            }
+        }
         return 0;
     }
 
     @Override
     public long testLocateThroughput(String queriesPath, int numQueries, int numThreads) {
+        String[] queries = readQueries(queriesPath, numQueries);
+        Tester[] testers = new Tester[numThreads];
+        for(int i = 0; i < numThreads; i++) {
+            testers[i] = new Tester(hostNames, queries, "locate");
+            testers[i].start();
+        }
+
+        for(int i = 0; i < numThreads; i++) {
+            try {
+                testers[i].join();
+            } catch (InterruptedException e) {
+                System.out.println("Error waiting for thread " + i + "...");
+                e.printStackTrace();
+            }
+        }
         return 0;
     }
 
     @Override
     public long testExtractThroughput(int numQueries, int numThreads) {
+        long[] randoms = generateRandoms(numQueries);
+        Tester[] testers = new Tester[numThreads];
+        for(int i = 0; i < numThreads; i++) {
+            testers[i] = new Tester(hostNames, randoms, "extract");
+            testers[i].start();
+        }
+
+        for(int i = 0; i < numThreads; i++) {
+            try {
+                testers[i].join();
+            } catch (InterruptedException e) {
+                System.out.println("Error waiting for thread " + i + "...");
+                e.printStackTrace();
+            }
+        }
         return 0;
     }
 
@@ -193,7 +518,6 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
 	        	TProtocol protocol = new TBinaryProtocol(transport);
 	        	QueryService.Client client = new QueryService.Client(protocol);
 	        	transport.open();
-
 	        	queryServers.add(client);
 	        	serverTransports.add(transport);
 	        	System.out.println("Connected!");
@@ -261,12 +585,16 @@ public class SuccinctServiceHandler implements SuccinctService.Iface {
     @Override
     public long count(String query) throws org.apache.thrift.TException {
     	int ret = 0;
-        for(int i = 0; i < queryServers.size(); i++) {
-            queryServers.get(i).send_count(query);
+        try {
+            for(int i = 0; i < queryServers.size(); i++) {
+                queryServers.get(i).send_count(query);
+            }
+        	for(int i = 0; i < queryServers.size(); i++) {
+        		ret += queryServers.get(i).recv_count();
+        	}
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-    	for(int i = 0; i < queryServers.size(); i++) {
-    		ret += queryServers.get(i).recv_count();
-    	}
     	return ret;
     }
 

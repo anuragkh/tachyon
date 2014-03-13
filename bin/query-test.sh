@@ -24,4 +24,4 @@ if [ -z $TACHYON_MASTER_ADDRESS ] ; then
 	MASTER_ADDRESS=localhost
 fi
 
-$JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME $TACHYON_JAVA_OPTS succinct.test.QueryServiceHandlerTest $MASTER_ADDRESS $1
+$JAVA -cp $TACHYON_JAR -Dtachyon.home=$TACHYON_HOME $TACHYON_JAVA_OPTS succinct.test.QueryServiceHandlerTest $MASTER_ADDRESS $1 $2

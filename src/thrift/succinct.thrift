@@ -35,6 +35,7 @@ service SuccinctService {
 
 service QueryService {
     i32 initialize(1:i32 mode),								             // Initializes QueryServer
+    i32 readDataStructures(),                                            // Reads data structures from tachyon
     i64 getSplitOffset(),                                                // Get the offset for this split
     list<i64> locate(1:string query),							         // Get the list of locations
     i64 count(1:string query),								             // Get the count of the substring
