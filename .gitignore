@@ -3,6 +3,7 @@
 .idea/
 .metadata/
 .settings/
+.idea/
 conf/tachyon-env.sh
 data/
 docs/_site

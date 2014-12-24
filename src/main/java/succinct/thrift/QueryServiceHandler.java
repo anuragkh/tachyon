@@ -532,9 +532,6 @@ public class QueryServiceHandler implements QueryService.Iface {
                 break;
         }
 
-        // TODO: remove this and read directly from buffer
-        long bitmap_size = (D.get() / 64) + 1;
-
         // Popcount
         while (l1_idx >= 16) {
             block_class = (int) getValPos(D, (int)pos, 4);
